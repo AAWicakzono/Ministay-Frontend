@@ -1,19 +1,20 @@
-"use client"; // Wajib client karena butuh usePathname
+"use client"; 
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, BedDouble, CalendarCheck, Wallet, MessageSquare, LogOut, Building2 } from "lucide-react";
+import { LayoutDashboard, BedDouble, CalendarCheck, Wallet, MessageSquare, LogOut, Building2, CalendarDays } from "lucide-react"; // Tambah CalendarDays
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname(); // Untuk cek URL aktif
+  const pathname = usePathname(); 
 
-  // Daftar Menu
+  // Daftar Menu Updated
   const menus = [
     { name: "Overview", url: "/admin/dashboard", icon: LayoutDashboard },
+    { name: "Kalender", url: "/admin/calendar", icon: CalendarDays }, // Menu Baru
     { name: "Kelola Kamar", url: "/admin/rooms", icon: BedDouble },
     { name: "Booking Masuk", url: "/admin/bookings", icon: CalendarCheck },
     { name: "Pendapatan", url: "/admin/finance", icon: Wallet },
-    { name: "Chat Tamu", url: "/chat", icon: MessageSquare },
+    { name: "Chat Tamu", url: "/admin/chat", icon: MessageSquare },
   ];
 
   return (
@@ -47,14 +48,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             })}
         </nav>
 
-        {/* 3. Profil Owner / Hotel (Footer Sidebar) */}
+        {/* 3. Profil Owner (Footer Sidebar) */}
         <div className="p-4 border-t border-gray-100 bg-gray-50/50">
             <div className="flex items-center gap-3 mb-4 px-2">
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
                     <Building2 className="w-5 h-5" />
                 </div>
                 <div className="overflow-hidden">
-                    {/* Disini nanti data diambil dari Login */}
                     <p className="text-sm font-bold text-gray-900 truncate">Kos Mawar Melati</p>
                     <p className="text-xs text-gray-500 truncate">Owner: Bpk. Budi</p>
                 </div>
