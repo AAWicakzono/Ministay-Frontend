@@ -5,7 +5,11 @@ import { rooms as staticRooms } from "@/lib/data";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { X, MapPin, Star, Wind, Wifi, Tv, Calendar, ChevronLeft, ChevronRight, MessageCircle, UserCircle, LogIn } from "lucide-react";
+import { 
+  X, MapPin, Star, Wind, Wifi, Tv, Calendar, 
+  ChevronLeft, ChevronRight, MessageCircle, UserCircle, LogIn,
+  BedDouble, Bath, Coffee, Utensils, Armchair, Briefcase
+} from "lucide-react"; // Tambah import icon
 import { Room, Review } from "@/types";
 
 interface RoomDetailViewProps {
@@ -18,11 +22,27 @@ interface SimpleBooking {
   checkOut: string;
 }
 
-// Helper: Parse Tanggal Aman
+// Helper: Parse Tanggal
 const parseDate = (dateStr: string) => {
     if (!dateStr) return new Date();
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d);
+};
+
+// HELPER BARU: Deteksi Ikon Fasilitas
+const getFacilityIcon = (name: string) => {
+  const lower = name.toLowerCase();
+  if (lower.includes("ac") || lower.includes("angin")) return <Wind size={14}/>;
+  if (lower.includes("wifi") || lower.includes("internet")) return <Wifi size={14}/>;
+  if (lower.includes("tv") || lower.includes("netflix")) return <Tv size={14}/>;
+  if (lower.includes("bed") || lower.includes("kasur")) return <BedDouble size={14}/>;
+  if (lower.includes("mandi") || lower.includes("bath") || lower.includes("water heater")) return <Bath size={14}/>;
+  if (lower.includes("kitchen") || lower.includes("dapur") || lower.includes("bar")) return <Utensils size={14}/>;
+  if (lower.includes("coffee") || lower.includes("kopi")) return <Coffee size={14}/>;
+  if (lower.includes("sofa") || lower.includes("balcony") || lower.includes("balkon")) return <Armchair size={14}/>;
+  if (lower.includes("desk") || lower.includes("kerja")) return <Briefcase size={14}/>;
+  
+  return <Star size={14}/>; // Default icon
 };
 
 export default function RoomDetailView({ roomId, isModal = false }: RoomDetailViewProps) {
@@ -47,7 +67,6 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // String Hari Ini (YYYY-MM-DD) untuk min attribute input
   const todayStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
@@ -75,20 +94,15 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
 
   // --- LOGIC KALENDER ---
   const isDateBooked = (date: Date) => {
-    // Reset jam agar akurat
     const target = new Date(date);
     target.setHours(0, 0, 0, 0);
     const targetTime = target.getTime();
 
-    // Cek Booking
-    const isBooked = existingBookings.some(b => {
+    return existingBookings.some(b => {
         const start = parseDate(b.checkIn).getTime();
         const end = parseDate(b.checkOut).getTime();
-        // Occupied: Start <= Target < End
         return targetTime >= start && targetTime < end;
     });
-
-    return isBooked;
   };
 
   const isDatePassed = (date: Date) => {
@@ -125,10 +139,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
         return;
     }
     if (!checkIn || !checkOut) return alert("Pilih tanggal dulu.");
-    
-    // Validasi Tanggal Lampau
     if (new Date(checkIn) < new Date(todayStr)) return alert("Tidak bisa memesan tanggal lampau.");
-
     if (!isRangeAvailable(checkIn, checkOut)) return alert("Tanggal sudah terisi.");
     router.push(`/checkout?roomId=${room.id}&checkIn=${checkIn}&checkOut=${checkOut}&days=${days}`);
   };
@@ -145,13 +156,10 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
     for (let day = 1; day <= daysInMonth; day++) {
         const dateObj = new Date(year, month, day);
         dateObj.setHours(0, 0, 0, 0);
-        
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        
         const booked = isDateBooked(dateObj);
         const passed = isDatePassed(dateObj);
         const disabled = booked || passed;
-
         const isSelected = (checkIn === dateStr) || (checkOut === dateStr);
         const isInRange = checkIn && checkOut && dateStr > checkIn && dateStr < checkOut;
 
@@ -163,7 +171,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
                     if (disabled) return;
                     if (!checkIn || (checkIn && checkOut)) { setCheckIn(dateStr); setCheckOut(""); } 
                     else if (dateStr > checkIn) { setCheckOut(dateStr); }
-                    else { setCheckIn(dateStr); } // Reset jika pilih tanggal mundur
+                    else { setCheckIn(dateStr); }
                 }}
                 className={`
                     h-8 w-8 flex items-center justify-center text-xs rounded-full transition
@@ -227,7 +235,6 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
         <div className="grid grid-cols-2 gap-3 mb-6">
             <div>
                 <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Check-In</label>
-                {/* Tambahkan min={todayStr} */}
                 <input type="date" min={todayStr} value={checkIn} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm" onChange={(e) => setCheckIn(e.target.value)}/>
             </div>
             <div>
@@ -237,12 +244,19 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
         </div>
 
         <div className="mb-6 space-y-4">
+            {/* --- BAGIAN FASILITAS YANG DIPERBAIKI --- */}
             <div>
                 <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Fasilitas</h3>
                 <div className="flex flex-wrap gap-2">
-                    {room.facilities.map((fas, i) => (<span key={i} className="px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">{fas}</span>))}
+                    {room.facilities.map((fas, i) => (
+                        <span key={i} className="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-600 text-xs rounded-xl font-medium flex items-center gap-2">
+                            {getFacilityIcon(fas)} {/* Panggil Helper Icon */}
+                            {fas}
+                        </span>
+                    ))}
                 </div>
             </div>
+            
             <div>
                 <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Deskripsi</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{room.description || "Kamar nyaman dengan fasilitas lengkap."}</p>

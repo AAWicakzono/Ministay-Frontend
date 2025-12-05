@@ -6,6 +6,7 @@ import { Room } from "@/types";
 import { rooms as initialRoomsData } from "@/lib/data"; 
 import { useNotification } from "@/context/NotificationContext"; 
 
+// Helper
 const parseDate = (dateStr: string) => {
   if (!dateStr) return new Date();
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -26,7 +27,6 @@ export default function ManageRoomsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<Room>>({});
-  
   const [bookings, setBookings] = useState<any[]>([]);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function ManageRoomsPage() {
     }
   }, [rooms]);
 
-  // AUTOMATION STATUS FISIK (HANYA AVAILABLE / OCCUPIED)
+  // AUTOMATION STATUS (Tetap berjalan di background)
   useEffect(() => {
     const syncRoomStatus = () => {
       if (typeof window === "undefined") return;
@@ -80,41 +80,33 @@ export default function ManageRoomsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookings]); 
 
-  // --- HELPER: HITUNG PREDIKSI SISA BULAN INI ---
   const getForecastStatus = (roomId: number) => {
-    const roomBookings = bookings
-        .filter((b: any) => String(b.roomId) === String(roomId) && b.status !== 'cancelled')
-        .map((b: any) => ({
-            start: parseDate(b.checkIn).getTime(),
-            end: parseDate(b.checkOut).getTime()
-        }));
-
+    let bookedCount = 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    endOfMonth.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 30; i++) {
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() + i);
+        const targetTime = targetDate.getTime();
 
-    let unbookedCount = 0;
-    let currentDate = new Date(today);
-    
-    while (currentDate <= endOfMonth) {
-        const targetTime = currentDate.getTime();
-        const isBooked = roomBookings.some((b: any) => targetTime >= b.start && targetTime < b.end);
-        
-        if (!isBooked) unbookedCount++;
-        currentDate.setDate(currentDate.getDate() + 1);
+        const isBooked = bookings.some((b: any) => {
+            if (String(b.roomId) !== String(roomId) || b.status === 'cancelled') return false;
+            const start = parseDate(b.checkIn).getTime();
+            const end = parseDate(b.checkOut).getTime();
+            return targetTime >= start && targetTime < end;
+        });
+        if (isBooked) bookedCount++;
     }
 
-    // LOGIKA: 0 = Penuh, <=4 = Hampir Penuh, >4 = Aman
-    if (unbookedCount === 0) return { label: "Penuh", color: "text-red-600 bg-red-50", icon: <XCircle className="w-3 h-3"/> };
-    if (unbookedCount <= 4) return { label: "Hampir Penuh", color: "text-orange-600 bg-orange-50", icon: <AlertCircle className="w-3 h-3"/> };
+    const unbooked = 30 - bookedCount;
+    if (unbooked === 0) return { label: "Penuh", color: "text-red-600 bg-red-50", icon: <XCircle className="w-3 h-3"/> };
     return { label: "Aman", color: "text-green-600 bg-green-50", icon: <CheckCircle className="w-3 h-3"/> };
   };
 
   const handleAddClick = () => {
     setIsEditing(false);
-    setFormData({ status: 'available', facilities: [] });
+    setFormData({ status: 'available', facilities: [], description: "" });
     setIsModalOpen(true);
   };
 
@@ -142,11 +134,12 @@ export default function ManageRoomsPage() {
         id: Date.now(),
         image: formData.image || "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=800",
         facilities: formData.facilities || ["AC", "WiFi"],
+        description: formData.description || "Kamar nyaman untuk Anda.",
         rating: 0,
         name: formData.name || "Kamar Baru",
         type: formData.type || "Standard",
         price: Number(formData.price) || 0,
-        status: formData.status || 'available',
+        status: 'available', // Default selalu Available saat buat baru
         location: 'Jakarta'
       } as Room;
       setRooms(prev => [...prev, newRoom]);
@@ -155,9 +148,17 @@ export default function ManageRoomsPage() {
     setIsModalOpen(false);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: name === "price" ? Number(value) : value }));
+  };
+
+  // Handler khusus untuk Fasilitas (Array)
+  const handleFacilitiesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Split string by comma untuk jadi array
+    const facilitiesArray = value.split(",").map((item) => item.trim());
+    setFormData(prev => ({ ...prev, facilities: facilitiesArray }));
   };
 
   const filteredRooms = rooms.filter(r => 
@@ -189,8 +190,8 @@ export default function ManageRoomsPage() {
                     <th className="p-4">Nama Kamar</th>
                     <th className="p-4">Tipe</th>
                     <th className="p-4">Harga / Malam</th>
-                    <th className="p-4">Status Harian</th>
-                    <th className="p-4">Prediksi (Bulan Ini)</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Prediksi (30 Hari)</th>
                     <th className="p-4 text-right">Aksi</th>
                 </tr>
             </thead>
@@ -229,21 +230,23 @@ export default function ManageRoomsPage() {
             </tbody>
         </table>
       </div>
-      
-      {/* Modal Form (Sama seperti sebelumnya, tidak perlu diubah) */}
+
+      {/* Modal Form Updated */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
-             {/* ... Isi Form ... */}
-             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
                     <h2 className="text-xl font-bold">{isEditing ? "Edit Kamar" : "Tambah Kamar Baru"}</h2>
                     <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-900"><X className="w-6 h-6"/></button>
                 </div>
                 <form onSubmit={handleSave} className="p-6 space-y-4">
+                    {/* Nama Kamar */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Nama Kamar</label>
                         <input name="name" required value={formData.name || ""} onChange={handleChange} type="text" className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Contoh: Kamar Melati 01"/>
                     </div>
+                    
+                    {/* Tipe & Harga */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Tipe</label>
@@ -254,32 +257,50 @@ export default function ManageRoomsPage() {
                             <input name="price" required value={formData.price || ""} onChange={handleChange} type="number" className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="150000"/>
                         </div>
                     </div>
-                    
+
+                    {/* NEW: Fasilitas */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Status Saat Ini</label>
-                        <div className="flex gap-4">
-                            {['available', 'occupied'].map((status) => (
-                                <label key={status} className="flex items-center gap-2 cursor-pointer border px-3 py-2 rounded-lg has-checked:border-blue-500 has-checked:bg-blue-50 transition">
-                                    <input type="radio" name="status" value={status} checked={formData.status === status} onChange={handleChange} className="accent-blue-600"/>
-                                    <span className="capitalize text-sm">{status === 'available' ? 'Tersedia' : 'Terisi'}</span>
-                                </label>
-                            ))}
-                        </div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Fasilitas (Pisahkan dengan koma)</label>
+                        <input 
+                            name="facilities" 
+                            // Join array jadi string untuk ditampilkan di input text
+                            value={formData.facilities ? formData.facilities.join(", ") : ""} 
+                            onChange={handleFacilitiesChange} 
+                            type="text" 
+                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" 
+                            placeholder="AC, WiFi, TV, Kamar Mandi Dalam"
+                        />
                     </div>
 
+                    {/* NEW: Deskripsi */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi Kamar</label>
+                        <textarea 
+                            name="description" 
+                            rows={3}
+                            value={formData.description || ""} 
+                            onChange={handleChange} 
+                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none" 
+                            placeholder="Jelaskan keunggulan kamar ini..."
+                        />
+                    </div>
+
+                    {/* Foto */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Link Foto (Opsional)</label>
                         <div className="flex items-center gap-2">
                             <ImageIcon className="text-gray-400 w-5 h-5"/>
                             <input name="image" value={formData.image || ""} onChange={handleChange} type="text" className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="https://..."/>
                         </div>
+                        <p className="text-xs text-gray-400 mt-1">*Gunakan link gambar valid (Unsplash/dll)</p>
                     </div>
+
                     <div className="pt-4 flex gap-3">
                         <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition">Batal</button>
                         <button type="submit" className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition flex items-center justify-center gap-2"><Save className="w-4 h-4"/> Simpan</button>
                     </div>
                 </form>
-           </div>
+            </div>
         </div>
       )}
     </div>
