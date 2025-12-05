@@ -3,7 +3,7 @@ export interface Room {
   name: string;
   type: string;
   price: number;
-  status: 'available' | 'occupied' | 'cleaning';
+  status: 'available' | 'occupied'; 
   image: string;
   facilities: string[];
   description?: string;
@@ -32,7 +32,6 @@ export interface ChatSession {
   avatar?: string;
 }
 
-// --- TIPE BARU: REVIEW ---
 export interface Review {
   id: string;
   roomId: number;

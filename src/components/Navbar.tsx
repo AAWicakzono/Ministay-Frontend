@@ -26,7 +26,7 @@ export default function Navbar() {
             <Link href="/my-bookings" className="flex items-center gap-1.5 hover:text-blue-200 transition opacity-90 hover:opacity-100">
                 <CalendarCheck className="w-4 h-4"/> Booking
             </Link>
-            <Link href="/chat" className="flex items-center gap-1.5 hover:text-blue-200 transition opacity-90 hover:opacity-100">
+            <Link href="/inbox" className="flex items-center gap-1.5 hover:text-blue-200 transition opacity-90 hover:opacity-100"> {/* Ubah link ke /inbox */}
                 <MessageCircle className="w-4 h-4"/> Chat
             </Link>
             {/* LINK BARU KE ULASAN */}
@@ -50,7 +50,7 @@ export default function Navbar() {
             <Link href="/my-bookings" className="flex items-center gap-1.5 whitespace-nowrap opacity-80 hover:opacity-100">
                 <CalendarCheck className="w-4 h-4"/> Booking
             </Link>
-            <Link href="/chat" className="flex items-center gap-1.5 whitespace-nowrap opacity-80 hover:opacity-100">
+            <Link href="/inbox" className="flex items-center gap-1.5 whitespace-nowrap opacity-80 hover:opacity-100"> {/* Ubah href jadi /inbox */}
                 <MessageCircle className="w-4 h-4"/> Chat
             </Link>
             {/* LINK BARU KE ULASAN (Mobile) */}

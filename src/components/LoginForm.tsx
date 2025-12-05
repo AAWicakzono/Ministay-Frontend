@@ -1,22 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Tambah useEffect
 import { useRouter } from "next/navigation";
 import { Phone, ArrowRight, X, UserCircle, LockKeyhole, User, Edit2 } from "lucide-react";
-import { useNotification } from "@/context/NotificationContext";
+import { useNotification } from "@/context/NotificationContext"; 
 
 interface LoginFormProps {
   isModal?: boolean;
 }
 
+// --- KOMPONEN COUNTDOWN KECIL ---
+// Ini yang akan dirender di dalam Popup
+const CountdownMessage = ({ onFinish }: { onFinish: () => void }) => {
+  const [timeLeft, setTimeLeft] = useState(15); // Mulai dari 15 detik
+
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      onFinish(); // Panggil fungsi redirect saat waktu habis
+      return;
+    }
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft, onFinish]);
+
+  return (
+    <span>
+      Anda akan diarahkan ke beranda dalam <span className="font-bold text-gray-900 text-base">{timeLeft}</span> detik...
+    </span>
+  );
+};
+
 export default function LoginForm({ isModal = false }: LoginFormProps) {
   const router = useRouter();
+  const { showToast, showPopup } = useNotification(); 
   
   const [role, setRole] = useState<"user" | "admin">("user");
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [loading, setLoading] = useState(false);
 
-  // State Input
   const [userName, setUserName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -27,8 +50,12 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
     if (isModal) router.back();
     else router.push("/");
   };
-  const { showPopup, showToast } = useNotification()
-  
+
+  const handleSuccessRedirect = () => {
+    if (isModal) window.location.reload();
+    else window.location.href = "/";
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault(); 
     setLoading(true);
@@ -36,46 +63,38 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
     setTimeout(() => {
       setLoading(false);
       
-      // --- LOGIC USER ---
       if (role === 'user') {
         if (step === "phone") {
-          if(!userName || !phoneNumber) return showToast("Isi nama & nomor HP", "error");
+          if(!userName || !phoneNumber) return showToast("Mohon isi nama dan nomor HP", "error");
           setStep("otp"); 
         } else {
           if(!otpCode) return showToast("Masukkan kode OTP", "error");
           
-          // 1. Simpan Sesi User
           const userData = { name: userName, phone: phoneNumber, role: 'user' };
           localStorage.setItem("ministay_user", JSON.stringify(userData));
+          window.dispatchEvent(new Event("user-update"));
+
           showPopup(
-            "Berhasil Login",
-            `Selamat datang kembali, ${userName}!`,
-            "success",
+            "Berhasil Login", 
+            // Kirim komponen CountdownMessage sebagai pesan
+            <CountdownMessage onFinish={handleSuccessRedirect} />, 
+            "success", 
             () => {
-               if (isModal) window.location.reload();
-               else window.location.href = "/";
+               handleSuccessRedirect();
             }
           );
-
-          // 2. Redirect
-          if (isModal) window.location.reload(); // Refresh agar UI update
-          else window.location.href = "/";
         }
-        
       } else {
-        // --- LOGIC ADMIN ---
-        if(!adminUser || !adminPass) return showToast("Isi username dan password admin", "error" );
-
-        // Simulasi Cek Password (Hardcoded untuk contoh)
+        if(!adminUser || !adminPass) return showToast("Isi username & password", "error");
+        
         if (adminUser === "admin" && adminPass === "admin123") {
-            // 1. Simpan Sesi Admin (PENTING!)
             const adminData = { name: "Administrator", role: "admin" };
             localStorage.setItem("ministay_user", JSON.stringify(adminData));
+            window.dispatchEvent(new Event("user-update"));
 
-            // 2. Redirect ke Dashboard
             window.location.href = "/admin/dashboard";
         } else {
-            showPopup("Username atau Password salah! (Coba: admin / admin123)", "error");
+            showPopup("Gagal Login", "Username atau password salah.", "error");
         }
       }
     }, 1000);
@@ -84,13 +103,11 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
   return (
     <div className={`bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ${isModal ? 'mx-4' : ''}`}>
       
-      {/* Header */}
       <div className="bg-blue-600 p-6 text-center text-white relative shrink-0">
         <button onClick={handleClose} type="button" className="absolute top-4 right-4 text-blue-200 hover:text-white transition">
             <X className="w-6 h-6" />
         </button>
 
-        {/* Toggle Role */}
         {step === "phone" && (
             <div className="inline-flex bg-blue-700 rounded-full p-1 mb-4">
             <button type="button" onClick={() => setRole("user")} className={`px-4 py-1 rounded-full text-xs font-bold transition flex items-center gap-1 ${role === 'user' ? 'bg-white text-blue-600' : 'text-blue-200'}`}>
@@ -108,7 +125,6 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
         </p>
       </div>
 
-      {/* Form */}
       <div className="p-8 overflow-y-auto">
         <form onSubmit={handleLogin} className="space-y-5">
           

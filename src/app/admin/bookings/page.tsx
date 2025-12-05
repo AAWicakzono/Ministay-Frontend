@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { CheckCircle, XCircle, Clock, Search, Trash2 } from "lucide-react";
+import { useNotification } from "@/context/NotificationContext"; 
 
 interface Booking {
   id: string;
@@ -18,8 +19,10 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  
+  // 2. Panggil Hook
+  const { showPopup, showToast } = useNotification();
 
-  // 1. Load Data Booking dari LocalStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("ministay_bookings");
@@ -29,19 +32,23 @@ export default function BookingsPage() {
     }
   }, []);
 
-  // Fungsi Hapus Booking (Untuk bersih-bersih data test)
   const handleDelete = (id: string) => {
-    if (confirm("Hapus riwayat booking ini?")) {
-      const updated = bookings.filter(b => b.id !== id);
-      setBookings(updated);
-      localStorage.setItem("ministay_bookings", JSON.stringify(updated));
-      
-      // Trigger update status kamar juga (opsional, biar rapi)
-      window.dispatchEvent(new Event("storage")); 
-    }
+    // 3. GANTI CONFIRM STANDAR DENGAN POPUP
+    showPopup(
+      "Hapus Riwayat?",
+      "Data booking ini akan dihapus permanen dari daftar.",
+      "warning",
+      () => {
+        const updated = bookings.filter(b => b.id !== id);
+        setBookings(updated);
+        localStorage.setItem("ministay_bookings", JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        
+        showToast("Riwayat booking berhasil dihapus", "success");
+      }
+    );
   };
 
-  // Filter Logic
   const filteredBookings = bookings.filter((item) => {
     const matchesStatus = filter === "all" ? true : item.status === filter;
     const matchesSearch = item.guestName.toLowerCase().includes(search.toLowerCase()) || 
@@ -58,7 +65,6 @@ export default function BookingsPage() {
             <p className="text-gray-500 text-sm">Daftar tamu yang sudah melakukan pembayaran</p>
         </div>
         
-        {/* Search Bar */}
         <div className="relative">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
             <input 
@@ -70,7 +76,6 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      {/* Filter Tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
         {['all', 'confirmed', 'pending', 'cancelled'].map((status) => (
             <button 
@@ -87,7 +92,6 @@ export default function BookingsPage() {
         ))}
       </div>
 
-      {/* List Booking */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-left">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold border-b border-gray-100">

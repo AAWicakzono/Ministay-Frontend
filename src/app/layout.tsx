@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AuthGuard from "@/components/AuthGuard";
-import { NotificationProvider } from "@/context/NotificationContext"; // Import Provider Baru
+import { NotificationProvider } from "@/context/NotificationContext";
 
 export const metadata: Metadata = {
   title: "MiniStay - Booking Kos Harian",
@@ -16,9 +16,9 @@ export default function RootLayout({
   modal: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
+    <html lang="id" suppressHydrationWarning={true}>
       <body className="antialiased bg-gray-50 text-gray-900">
-        <NotificationProvider> {/* Bungkus di sini */}
+        <NotificationProvider>
             <AuthGuard>
                 {children}
                 {modal}

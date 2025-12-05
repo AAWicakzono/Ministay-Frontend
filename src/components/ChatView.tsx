@@ -13,46 +13,38 @@ function ChatContent({ isModal = false }: ChatViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Ambil parameter dari URL
   const rawRoomId = searchParams.get("roomId");
-  const urlContext = searchParams.get("context");
+  const roomContext = searchParams.get("context");
   
-  // ID Ruang Chat Final
-  const roomId = rawRoomId || "general"; 
+  // --- PERBAIKAN LOGIKA ID ---
+  // Jika roomId tidak ada, gunakan Nama Kamar sebagai ID.
+  // Hanya gunakan "general" jika BENAR-BENAR tidak ada info kamar.
+  const roomId = rawRoomId || (roomContext ? `room-${roomContext.replace(/\s+/g, '-')}` : "general");
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [roomName, setRoomName] = useState(urlContext || ""); // State untuk nama kamar
 
-  // --- 1. LOAD PESAN & NAMA KAMAR ---
+  // --- 1. LOAD PESAN ---
   useEffect(() => {
     setMessages([]); // Reset tampilan saat ganti room
 
     if (typeof window !== "undefined") {
       const allChats: ChatSession[] = JSON.parse(localStorage.getItem("ministay_chats") || "[]");
       
-      // Cari chat history berdasarkan roomId yang cocok (String vs String)
+      // Cari chat berdasarkan ID yang sudah diperkuat
       const currentChat = allChats.find(c => String(c.roomId) === String(roomId));
 
-      if (currentChat) {
-        // 1. Restore Pesan
+      if (currentChat && currentChat.messages.length > 0) {
         setMessages(currentChat.messages);
-        
-        // 2. Restore Nama Kamar (Jika di URL tidak ada context, ambil dari history)
-        if (!urlContext) {
-          setRoomName(currentChat.roomName);
-        }
       } else {
-        // Chat Baru: Set pesan awal
-        setRoomName(urlContext || (roomId === "general" ? "Customer Service" : "Admin Kamar"));
-        
+        // Pesan awal (Greeting)
         const initialMessages: Message[] = [
           { 
             id: 1, 
-            text: roomId === "general" ? "Halo! Ada yang bisa kami bantu hari ini?" : `Halo! Tertarik dengan ${urlContext || 'kamar ini'}?`, 
+            text: roomId === "general" ? "Halo! Ada yang bisa kami bantu?" : `Halo! Tertarik dengan ${roomContext}?`, 
             sender: "admin", 
             time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
           }
@@ -60,7 +52,7 @@ function ChatContent({ isModal = false }: ChatViewProps) {
         setMessages(initialMessages);
       }
     }
-  }, [roomId, urlContext]);
+  }, [roomId, roomContext]);
 
   // Auto Scroll
   useEffect(() => {
@@ -91,17 +83,14 @@ function ChatContent({ isModal = false }: ChatViewProps) {
     const allChats: ChatSession[] = JSON.parse(localStorage.getItem("ministay_chats") || "[]");
     const existingIndex = allChats.findIndex(c => String(c.roomId) === String(roomId));
 
-    // Nama final yang akan disimpan (Prioritas: URL > History > Default)
-    const finalRoomName = urlContext || roomName || (roomId === "general" ? "Customer Service" : "Admin Kamar");
-
     const chatData: ChatSession = {
       roomId: String(roomId),
-      roomName: finalRoomName,
+      roomName: roomContext || (existingIndex > -1 ? allChats[existingIndex].roomName : "Customer Service"),
       lastMessage: input,
       timestamp: timeString,
       messages: newMessages,
       unread: 0,
-      avatar: roomId === "general" ? "CS" : finalRoomName.substring(0, 2).toUpperCase()
+      avatar: roomId === "general" ? "CS" : "RM"
     };
 
     if (existingIndex > -1) {
@@ -111,7 +100,7 @@ function ChatContent({ isModal = false }: ChatViewProps) {
     }
 
     localStorage.setItem("ministay_chats", JSON.stringify(allChats));
-    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("storage")); 
   };
 
   const handleClose = () => {
@@ -128,9 +117,9 @@ function ChatContent({ isModal = false }: ChatViewProps) {
             <ArrowLeft className="w-6 h-6" />
         </button>
         <div className="flex-1 min-w-0">
-            {/* JUDUL DINAMIS */}
+            {/* Judul Header Dinamis */}
             <h1 className="font-bold leading-tight truncate">
-              {roomId === "general" ? "Customer Service" : roomName}
+              {roomId === "general" ? "Customer Service" : (roomContext || "Admin Kamar")}
             </h1>
             <p className="text-xs text-blue-100 opacity-90 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span> Online
@@ -140,12 +129,10 @@ function ChatContent({ isModal = false }: ChatViewProps) {
 
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#e5ddd5] bg-opacity-10">
-        
-        {/* Info Context Bubble */}
-        {roomId !== "general" && (
+        {roomId !== "general" && roomContext && (
            <div className="flex justify-center my-2 sticky top-0 z-0">
               <div className="bg-white/80 backdrop-blur-sm text-gray-500 text-[10px] px-3 py-1 rounded-full shadow-sm border border-gray-200">
-                  Topik: <b>{roomName}</b>
+                  Chatting soal: <b>{roomContext}</b>
               </div>
           </div>
         )}
@@ -157,17 +144,21 @@ function ChatContent({ isModal = false }: ChatViewProps) {
                 ? "bg-blue-600 text-white rounded-br-none" 
                 : "bg-white border border-gray-100 text-gray-800 rounded-bl-none"
             }`}>
+              
               {msg.replyTo && (
                 <div className={`rounded-lg p-2 mb-1 text-xs border-l-2 bg-black/10 ${msg.sender === 'user' ? 'border-white/50' : 'border-blue-500'}`}>
                     <p className="font-bold opacity-90">{msg.replyTo.senderName}</p>
                     <p className="truncate opacity-80">{msg.replyTo.text}</p>
                 </div>
               )}
+
               <div className="text-sm leading-relaxed wrap-break-word">{msg.text}</div>
+              
               <div className={`text-[10px] flex items-center justify-end gap-1 mt-1 ${msg.sender === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
                 {msg.time}
                 {msg.sender === 'user' && <CheckCheck className="w-3 h-3" />}
               </div>
+
               <button onClick={() => setReplyingTo(msg)} className={`absolute top-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all ${msg.sender === 'user' ? '-left-10' : '-right-10'}`}>
                  <div className="bg-gray-200 text-gray-600 p-1.5 rounded-full hover:bg-blue-100 hover:text-blue-600 shadow-sm"><Reply className="w-4 h-4" /></div>
               </button>
@@ -180,7 +171,7 @@ function ChatContent({ isModal = false }: ChatViewProps) {
       {/* Input Area */}
       <div className="bg-white p-3 border-t border-gray-100 shrink-0">
         {replyingTo && (
-            <div className="flex justify-between items-center mb-2 bg-gray-50 p-2 rounded-lg border-l-4 border-blue-600">
+            <div className="flex justify-between items-center mb-2 bg-gray-50 p-2 rounded-lg border-l-4 border-blue-600 animate-in slide-in-from-bottom-2">
                 <div className="ml-2 text-xs overflow-hidden">
                     <p className="font-bold text-blue-600">Membalas {replyingTo.sender === 'admin' ? 'Admin' : 'Anda'}</p>
                     <p className="truncate text-gray-500">{replyingTo.text}</p>

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Clock, ShieldCheck, CreditCard, X } from "lucide-react";
 import { Room } from "@/types";
+import { useNotification } from "@/context/NotificationContext"; // 1. Import Notification
 
 interface CheckoutViewProps {
   isModal?: boolean;
@@ -12,6 +13,7 @@ interface CheckoutViewProps {
 export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showPopup, showToast } = useNotification(); // 2. Panggil Hook
   
   const roomId = searchParams.get("roomId");
   const checkIn = searchParams.get("checkIn");
@@ -20,49 +22,42 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
 
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // --- 1. STATE TIMER (15 Menit = 900 Detik) ---
   const [timeLeft, setTimeLeft] = useState(900); 
 
-  // --- 2. LOGIKA COUNTDOWN & TIMEOUT ---
   useEffect(() => {
-    // Jika waktu habis, jangan lanjut
     if (timeLeft <= 0) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prevTime) => {
-        // Jika waktu mencapai 0 (atau 1 agar transisi pas)
         if (prevTime <= 1) {
           clearInterval(timer);
           
-          // Action saat waktu habis
-          alert("Waktu pembayaran habis! Pemesanan dibatalkan otomatis.");
+          // 3. GANTI ALERT TIMEOUT
+          showPopup(
+            "Waktu Habis",
+            "Sesi pembayaran Anda telah berakhir. Silakan ulangi pemesanan.",
+            "error",
+            () => {
+               if (isModal) window.location.href = "/";
+               else router.push("/");
+            }
+          );
           
-          // Redirect ke Home (Batalkan Booking)
-          if (isModal) {
-            window.location.href = "/"; // Paksa reload ke home
-          } else {
-            router.push("/");
-          }
           return 0;
         }
         return prevTime - 1;
       });
     }, 1000);
 
-    // Cleanup interval saat komponen ditutup/unmount
     return () => clearInterval(timer);
-  }, [isModal, router, timeLeft]);
+  }, [isModal, router, timeLeft, showPopup]); // Add dependency
 
-  // --- 3. FORMAT WAKTU (MM:SS) ---
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    // Tambahkan '0' di depan jika angka satuan (contoh: 14:05)
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Load Data Kamar
   useEffect(() => {
     if (typeof window !== "undefined" && roomId) {
       const storedRooms = localStorage.getItem("ministay_rooms");
@@ -103,13 +98,17 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
       const existingBookings = JSON.parse(localStorage.getItem("ministay_bookings") || "[]");
       localStorage.setItem("ministay_bookings", JSON.stringify([newBooking, ...existingBookings]));
 
-      alert("Pembayaran Berhasil! E-Ticket sudah terbit.");
+      // 4. GANTI ALERT SUKSES
+      showPopup(
+        "Pembayaran Berhasil!",
+        "E-Ticket telah diterbitkan. Tunjukkan kepada resepsionis saat check-in.",
+        "success",
+        () => {
+            if (isModal) window.location.href = "/my-bookings";
+            else router.push("/my-bookings");
+        }
+      );
       
-      if (isModal) {
-        window.location.href = "/my-bookings"; 
-      } else {
-        router.push("/my-bookings");
-      }
     }, 2000);
   };
 
@@ -127,12 +126,11 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
       {/* Konten Scrollable */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         
-        {/* --- TIMER AKTIF --- */}
+        {/* Timer */}
         <div className={`p-3 rounded-xl text-sm flex items-center justify-between border transition-colors ${
             timeLeft < 60 ? 'bg-red-50 text-red-700 border-red-100 animate-pulse' : 'bg-orange-50 text-orange-700 border-orange-100'
         }`}>
             <span className="flex items-center gap-2"><Clock className="w-4 h-4"/> Selesaikan dalam</span>
-            {/* Tampilkan Waktu Berjalan */}
             <span className="font-bold font-mono text-lg">{formatTime(timeLeft)}</span>
         </div>
 

@@ -2,30 +2,32 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { QrCode, Download, Star, X } from "lucide-react"; // Tambah icon Star & X
+import { QrCode, Download, Star, X, ArrowLeft } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { Review } from "@/types"; // Import tipe Review
+import { Review } from "@/types";
+import { useNotification } from "@/context/NotificationContext"; // 1. Import
 
 interface Booking {
   id: string;
-  roomId: number; // Pastikan roomId tersimpan saat checkout
+  roomId: number;
   roomName: string;
   guestName: string;
   checkIn: string;
   checkOut: string;
   totalPrice: number;
   status: string;
-  isReviewed?: boolean; // Flag penanda sudah direview
+  isReviewed?: boolean;
 }
 
 export default function MyBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [showTicket, setShowTicket] = useState<Booking | null>(null);
   
-  // State Modal Review
   const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
+
+  const { showToast, showPopup } = useNotification(); // 2. Panggil Hook
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -36,7 +38,6 @@ export default function MyBookingsPage() {
     }
   }, []);
 
-  // Fungsi Submit Review
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewBooking) return;
@@ -50,26 +51,23 @@ export default function MyBookingsPage() {
       date: new Date().toLocaleDateString("id-ID")
     };
 
-    // 1. Simpan Review ke Storage
     const existingReviews = JSON.parse(localStorage.getItem("ministay_reviews") || "[]");
     localStorage.setItem("ministay_reviews", JSON.stringify([newReview, ...existingReviews]));
 
-    // 2. Tandai Booking sebagai "Sudah Direview"
     const updatedBookings = bookings.map(b => 
       b.id === reviewBooking.id ? { ...b, isReviewed: true } : b
     );
     setBookings(updatedBookings);
     localStorage.setItem("ministay_bookings", JSON.stringify(updatedBookings));
 
-    alert("Terima kasih atas ulasan Anda!");
+    // 3. GANTI ALERT REVIEW
+    showPopup("Ulasan Terkirim", "Terima kasih atas feedback Anda! Ulasan akan muncul di halaman kamar.", "success");
+    
     setReviewBooking(null);
     setComment("");
     setRating(5);
   };
 
-  // Cek apakah booking sudah bisa direview (Status confirmed & belum direview)
-  // Untuk simulasi: Kita anggap semua booking 'confirmed' bisa direview
-  // Di real app: Cek tanggal checkout < hari ini
   const canReview = (item: Booking) => {
     return item.status === 'confirmed' && !item.isReviewed;
   };
@@ -128,7 +126,6 @@ export default function MyBookingsPage() {
                         </div>
                     </div>
 
-                    {/* Tombol Review */}
                     {canReview(item) ? (
                         <button 
                             onClick={() => setReviewBooking(item)}
@@ -160,7 +157,6 @@ export default function MyBookingsPage() {
                         <p className="font-bold text-lg text-gray-900">{reviewBooking.roomName}?</p>
                     </div>
 
-                    {/* Bintang */}
                     <div className="flex justify-center gap-2 py-2">
                         {[1, 2, 3, 4, 5].map((star) => (
                             <button
@@ -193,16 +189,15 @@ export default function MyBookingsPage() {
         </div>
       )}
 
-      {/* --- MODAL E-TICKET (Kode Lama) --- */}
+      {/* --- MODAL E-TICKET --- */}
       {showTicket && (
-        // ... (Biarkan kode modal tiket yang lama tetap ada di sini)
         <div className="fixed inset-0 bg-black/80 z-60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl relative">
                 <button onClick={() => setShowTicket(null)} className="absolute top-4 right-4 bg-white/20 text-white hover:bg-white/40 p-2 rounded-full z-10 transition backdrop-blur-md">
-                    <X className="w-5 h-5"/> {/* Ganti icon X biar konsisten */}
+                    <X className="w-5 h-5"/>
                 </button>
-                {/* ... Isi Ticket Header, Body, Footer sama persis seperti sebelumnya ... */}
                 <div className="bg-blue-600 p-8 text-center text-white pb-12 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
                     <h2 className="text-2xl font-bold relative z-10">E-Ticket</h2>
                     <p className="text-blue-100 text-sm relative z-10 opacity-90">Tunjukkan QR ini ke resepsionis</p>
                 </div>
@@ -211,6 +206,8 @@ export default function MyBookingsPage() {
                         <div className="w-40 h-40 bg-gray-900 mx-auto rounded-2xl flex items-center justify-center mb-4 shadow-inner ring-4 ring-white">
                             <QrCode className="w-24 h-24 text-white"/>
                         </div>
+                        <p className="text-xs text-gray-400 mb-4 font-medium tracking-wide">SCAN ME • MINISTAY</p>
+                        <div className="border-t border-dashed border-gray-200 my-4"></div>
                         <h3 className="font-bold text-lg text-gray-900">{showTicket.roomName}</h3>
                         <p className="text-sm text-gray-500 mb-4">{showTicket.guestName}</p>
                         <div className="bg-blue-50 rounded-xl p-4 text-left space-y-3 text-sm border border-blue-100">
