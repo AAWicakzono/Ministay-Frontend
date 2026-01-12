@@ -85,7 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             <div className="grid grid-cols-2 gap-2">
                 <Link href="/" className="flex flex-col items-center justify-center gap-1 px-2 py-2 text-gray-600 hover:bg-white hover:shadow-sm hover:text-blue-600 rounded-lg text-[10px] font-medium transition border border-transparent hover:border-gray-200">
-                    <ExternalLink className="w-4 h-4" /> Ke Web
+                    <ExternalLink className="w-4 h-4" /> Ke Beranda
                 </Link>
                 <button onClick={handleLogout} className="flex flex-col items-center justify-center gap-1 px-2 py-2 text-red-500 hover:bg-white hover:shadow-sm rounded-lg text-[10px] font-medium transition border border-transparent hover:border-red-100">
                     <LogOut className="w-4 h-4" /> Keluar
