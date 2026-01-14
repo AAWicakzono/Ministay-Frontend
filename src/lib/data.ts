@@ -1,7 +1,6 @@
 import { Room } from "@/types";
 
 export const rooms: Room[] = [
-  // --- DATA LAMA (1-3) ---
   {
     id: 1,
     name: "Kamar Deluxe A1",

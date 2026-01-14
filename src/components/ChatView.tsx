@@ -16,9 +16,6 @@ function ChatContent({ isModal = false }: ChatViewProps) {
   const rawRoomId = searchParams.get("roomId");
   const roomContext = searchParams.get("context");
   
-  // --- PERBAIKAN LOGIKA ID ---
-  // Jika roomId tidak ada, gunakan Nama Kamar sebagai ID.
-  // Hanya gunakan "general" jika BENAR-BENAR tidak ada info kamar.
   const roomId = rawRoomId || (roomContext ? `room-${roomContext.replace(/\s+/g, '-')}` : "general");
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -27,20 +24,19 @@ function ChatContent({ isModal = false }: ChatViewProps) {
   const [input, setInput] = useState("");
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
-  // --- 1. LOAD PESAN ---
+  // LOAD PESAN
   useEffect(() => {
-    setMessages([]); // Reset tampilan saat ganti room
+    setMessages([]); 
 
     if (typeof window !== "undefined") {
       const allChats: ChatSession[] = JSON.parse(localStorage.getItem("ministay_chats") || "[]");
       
-      // Cari chat berdasarkan ID yang sudah diperkuat
       const currentChat = allChats.find(c => String(c.roomId) === String(roomId));
 
       if (currentChat && currentChat.messages.length > 0) {
         setMessages(currentChat.messages);
       } else {
-        // Pesan awal (Greeting)
+
         const initialMessages: Message[] = [
           { 
             id: 1, 
@@ -54,12 +50,11 @@ function ChatContent({ isModal = false }: ChatViewProps) {
     }
   }, [roomId, roomContext]);
 
-  // Auto Scroll
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, replyingTo]);
 
-  // --- 2. KIRIM & SIMPAN ---
   const handleSend = () => {
     if(!input.trim()) return;
     

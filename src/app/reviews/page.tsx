@@ -54,15 +54,12 @@ export default function ReviewsPage() {
                 </Link>
             </div>
         ) : (
-            // --- MASONRY LAYOUT (BATU BATA) ---
-            // columns-1 (HP), columns-2 (Tablet), columns-3 (Desktop)
-            // gap-6: Jarak antar kolom
+
             <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
                 {reviews.map((rev) => {
                     const room = getRoomDetails(rev.roomId);
                     return (
-                        // break-inside-avoid: Mencegah kartu terpotong di tengah kolom
-                        // mb-6: Jarak vertikal antar kartu
+
                         <div key={rev.id} className="break-inside-avoid mb-6 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-4 hover:shadow-md transition group animate-in fade-in duration-500 hover:-translate-y-1">
                             
                             {/* Header: User Info & Rating */}
@@ -83,7 +80,6 @@ export default function ReviewsPage() {
                                 </div>
                             </div>
 
-                            {/* Comment - Height akan bervariasi sesuai panjang teks (efek batu bata) */}
                             <div className="flex-1">
                                 <p className="text-gray-600 text-sm leading-relaxed italic relative pl-3 border-l-2 border-gray-200">
                                     "{rev.comment}"

@@ -1,14 +1,32 @@
-"use client"; 
+"use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, BedDouble, CalendarCheck, Wallet, MessageSquare, LogOut, Building2, CalendarDays, ExternalLink } from "lucide-react"; 
+import { 
+  LayoutDashboard, BedDouble, CalendarCheck, Wallet, 
+  MessageSquare, LogOut, Building2, CalendarDays, ExternalLink, Loader2 
+} from "lucide-react"; 
 import { useNotification } from "@/context/NotificationContext"; 
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); 
   const router = useRouter();
   const { showPopup, showToast } = useNotification(); 
+  
+ 
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  //  LOGIKA AUTH GUARD (PROTEKSI)
+  useEffect(() => {
+    const token = localStorage.getItem("ministay_admin_token");
+    
+    if (!token) {
+      router.replace("/admin/login");
+    } else {
+      setIsAuthorized(true);
+    }
+  }, [router]);
 
   const menus = [
     { name: "Overview", url: "/admin/dashboard", icon: LayoutDashboard },
@@ -26,6 +44,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       "warning",
       () => {
         localStorage.removeItem("ministay_user");
+        localStorage.removeItem("ministay_admin_token");
+        
         window.dispatchEvent(new Event("user-update"));
         
         showToast("Berhasil Logout", "success");
@@ -34,6 +54,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   };
 
+  // TAMPILAN LOADING SEBELUM CEK LOGIN SELESAI 
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-2">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <p className="text-sm text-gray-500 font-medium">Memverifikasi akses...</p>
+        </div>
+      </div>
+    );
+  }
+
+  //  LAYOUT UTAMA 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans">
       

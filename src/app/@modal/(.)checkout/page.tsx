@@ -10,7 +10,7 @@ export default function CheckoutModal() {
   return (
     <div 
       className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-in fade-in duration-300 backdrop-blur-sm p-4"
-      onClick={() => router.back()} // Klik luar untuk tutup
+      onClick={() => router.back()} 
     >
       {/* Stop Propagation agar klik di dalam modal tidak menutup modal */}
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">

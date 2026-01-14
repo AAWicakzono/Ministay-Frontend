@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Clock, ShieldCheck, CreditCard, X } from "lucide-react";
 import { Room } from "@/types";
-import { useNotification } from "@/context/NotificationContext"; // 1. Import Notification
-
+import { useNotification } from "@/context/NotificationContext";
 interface CheckoutViewProps {
   isModal?: boolean;
 }
@@ -13,7 +12,7 @@ interface CheckoutViewProps {
 export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { showPopup, showToast } = useNotification(); // 2. Panggil Hook
+  const { showPopup, showToast } = useNotification(); 
   
   const roomId = searchParams.get("roomId");
   const checkIn = searchParams.get("checkIn");
@@ -32,7 +31,7 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
         if (prevTime <= 1) {
           clearInterval(timer);
           
-          // 3. GANTI ALERT TIMEOUT
+
           showPopup(
             "Waktu Habis",
             "Sesi pembayaran Anda telah berakhir. Silakan ulangi pemesanan.",
@@ -50,7 +49,7 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isModal, router, timeLeft, showPopup]); // Add dependency
+  }, [isModal, router, timeLeft, showPopup]); 
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -98,7 +97,6 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
       const existingBookings = JSON.parse(localStorage.getItem("ministay_bookings") || "[]");
       localStorage.setItem("ministay_bookings", JSON.stringify([newBooking, ...existingBookings]));
 
-      // 4. GANTI ALERT SUKSES
       showPopup(
         "Pembayaran Berhasil!",
         "E-Ticket telah diterbitkan. Tunjukkan kepada resepsionis saat check-in.",

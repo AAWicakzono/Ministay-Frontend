@@ -1,22 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react"; // Tambah useEffect
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, ArrowRight, X, UserCircle, LockKeyhole, User, Edit2 } from "lucide-react";
+import { Phone, ArrowRight, X, UserCircle, LockKeyhole, User, Edit2, Loader2 } from "lucide-react";
 import { useNotification } from "@/context/NotificationContext"; 
 
 interface LoginFormProps {
   isModal?: boolean;
+  isAdmin?: boolean;
 }
 
-// --- KOMPONEN COUNTDOWN KECIL ---
-// Ini yang akan dirender di dalam Popup
 const CountdownMessage = ({ onFinish }: { onFinish: () => void }) => {
-  const [timeLeft, setTimeLeft] = useState(15); // Mulai dari 15 detik
+  const [timeLeft, setTimeLeft] = useState(15); 
 
   useEffect(() => {
     if (timeLeft <= 0) {
-      onFinish(); // Panggil fungsi redirect saat waktu habis
+      onFinish(); 
       return;
     }
     const timer = setInterval(() => {
@@ -56,14 +55,15 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
     else window.location.href = "/";
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); 
     setLoading(true);
 
-    setTimeout(() => {
-      setLoading(false);
-      
-      if (role === 'user') {
+    //  LOGIKA USER 
+    if (role === 'user') {
+      setTimeout(() => {
+        setLoading(false);
+        
         if (step === "phone") {
           if(!userName || !phoneNumber) return showToast("Mohon isi nama dan nomor HP", "error");
           setStep("otp"); 
@@ -76,7 +76,6 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
 
           showPopup(
             "Berhasil Login", 
-            // Kirim komponen CountdownMessage sebagai pesan
             <CountdownMessage onFinish={handleSuccessRedirect} />, 
             "success", 
             () => {
@@ -84,20 +83,56 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
             }
           );
         }
-      } else {
-        if(!adminUser || !adminPass) return showToast("Isi username & password", "error");
-        
-        if (adminUser === "admin" && adminPass === "admin123") {
-            const adminData = { name: "Administrator", role: "admin" };
+      }, 1000);
+    } 
+    // ADMIN 
+    else {
+      if(!adminUser || !adminPass) {
+        setLoading(false);
+        return showToast("Isi username & password", "error");
+      }
+      
+      try {
+        const res = await fetch("/auth/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                email: adminUser, 
+                password: adminPass
+            }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.message || "Login gagal. Cek username/password.");
+        }
+
+        // Simpan Token Admin & User Data
+        if (data.token) {
+            localStorage.setItem("ministay_admin_token", data.token);
+            
+            const adminData = { 
+                name: data.user?.name || "Administrator", 
+                role: "admin",
+                email: data.user?.email
+            };
             localStorage.setItem("ministay_user", JSON.stringify(adminData));
             window.dispatchEvent(new Event("user-update"));
 
+            // Redirect ke Dashboard
             window.location.href = "/admin/dashboard";
         } else {
-            showPopup("Gagal Login", "Username atau password salah.", "error");
+            throw new Error("Token tidak diterima dari server.");
         }
+
+      } catch (error: any) {
+        console.error("Login Error:", error);
+        showPopup("Gagal Login", error.message || "Terjadi kesalahan server.", "error");
+      } finally {
+        setLoading(false);
       }
-    }, 1000);
+    }
   };
 
   return (
@@ -161,23 +196,24 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
           ) : (
              <>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">Username</label>
+                  <label className="text-sm font-medium text-gray-700">Username / Email</label>
                   <div className="relative">
                       <UserCircle className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                      <input type="text" placeholder="admin" value={adminUser} onChange={(e) => setAdminUser(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
+                      <input type="text" placeholder="Username" value={adminUser} onChange={(e) => setAdminUser(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Password</label>
                   <div className="relative">
                       <LockKeyhole className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                      <input type="password" placeholder="admin123" value={adminPass} onChange={(e) => setAdminPass(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
+                      <input type="password" placeholder="Password" value={adminPass} onChange={(e) => setAdminPass(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
                   </div>
                 </div>
              </>
           )}
 
           <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 disabled:opacity-70 shadow-lg shadow-blue-200 mt-2">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin"/> : null}
               {loading ? "Memproses..." : role === 'admin' ? "Masuk Dashboard" : step === "phone" ? "Kirim Kode OTP" : "Verifikasi & Masuk"}
               {!loading && <ArrowRight className="w-4 h-4" />}
           </button>

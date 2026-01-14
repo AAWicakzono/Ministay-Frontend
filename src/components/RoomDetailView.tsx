@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { rooms as staticRooms } from "@/lib/data";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { 
   X, MapPin, Star, Wind, Wifi, Tv, Calendar, 
   ChevronLeft, ChevronRight, MessageCircle, UserCircle, LogIn,
-  BedDouble, Bath, Coffee, Utensils, Armchair, Briefcase
-} from "lucide-react"; // Tambah import icon
+  BedDouble, Bath, Coffee, Utensils, Armchair, Briefcase, Loader2
+} from "lucide-react"; 
 import { Room, Review } from "@/types";
 
 interface RoomDetailViewProps {
@@ -22,6 +21,10 @@ interface SimpleBooking {
   checkOut: string;
 }
 
+//  KONFIGURASI API
+const API_BASE_URL = "https://ministay-be-production.up.railway.app/api/rooms";
+const IMAGE_BASE_URL = "https://ministay-be-production.up.railway.app/storage/";
+
 // Helper: Parse Tanggal
 const parseDate = (dateStr: string) => {
     if (!dateStr) return new Date();
@@ -29,7 +32,7 @@ const parseDate = (dateStr: string) => {
     return new Date(y, m - 1, d);
 };
 
-// HELPER BARU: Deteksi Ikon Fasilitas
+// HELPER: Deteksi Ikon Fasilitas
 const getFacilityIcon = (name: string) => {
   const lower = name.toLowerCase();
   if (lower.includes("ac") || lower.includes("angin")) return <Wind size={14}/>;
@@ -41,25 +44,18 @@ const getFacilityIcon = (name: string) => {
   if (lower.includes("coffee") || lower.includes("kopi")) return <Coffee size={14}/>;
   if (lower.includes("sofa") || lower.includes("balcony") || lower.includes("balkon")) return <Armchair size={14}/>;
   if (lower.includes("desk") || lower.includes("kerja")) return <Briefcase size={14}/>;
-  
-  return <Star size={14}/>; // Default icon
+  return <Star size={14}/>;
 };
 
 export default function RoomDetailView({ roomId, isModal = false }: RoomDetailViewProps) {
   const router = useRouter();
   
-  const [room] = useState<Room | undefined>(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("ministay_rooms");
-      if (stored) {
-        const parsedRooms = JSON.parse(stored);
-        const found = parsedRooms.find((r: Room) => r.id === roomId);
-        if (found) return found;
-      }
-    }
-    return staticRooms.find((r) => r.id === roomId);
-  });
+  // State Data Kamar
+  const [room, setRoom] = useState<Room | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
+  // State Booking & UI
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [existingBookings, setExistingBookings] = useState<SimpleBooking[]>([]);
@@ -69,6 +65,55 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
 
   const todayStr = new Date().toISOString().split('T')[0];
 
+  // FETCH DATA DARI API
+  useEffect(() => {
+    const fetchRoomDetail = async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/${roomId}`);
+            if (!res.ok) throw new Error("Gagal mengambil data kamar");
+
+            const data = await res.json();
+
+            const coverImage = data.images?.find((img: any) => img.is_cover)?.path || data.images?.[0]?.path;
+            const fullImageUrl = coverImage 
+                ? `${IMAGE_BASE_URL}${coverImage}` 
+                : "https://placehold.co/600x400?text=No+Image";
+
+            let roomType = "Standard";
+            if (data.name.toLowerCase().includes("deluxe")) roomType = "Deluxe";
+            else if (data.name.toLowerCase().includes("vip")) roomType = "VIP";
+            else if (data.name.toLowerCase().includes("suite") || data.name.includes("family")) roomType = "Suite";
+
+            const mappedRoom: Room = {
+                id: data.id,
+                name: data.name,
+                type: roomType,
+                price: parseInt(data.price_per_day), // Backend: price_per_day
+                status: "available", // Default available krn API detail tdk kirim status
+                image: fullImageUrl,
+                description: data.description,
+                // Data Dummy (karena tidak ada di API)
+                facilities: ["AC", "WiFi", "TV", "Kamar Mandi Dalam", "Handuk"], 
+                rating: 4.8,
+                location: "Jakarta Pusat"
+            };
+
+            setRoom(mappedRoom);
+        } catch (err) {
+            console.error(err);
+            setError("Terjadi kesalahan saat memuat data.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (roomId) {
+        fetchRoomDetail();
+    }
+  }, [roomId]);
+
+  //  LOAD LOCAL STORAGE (User & Booking )
   useEffect(() => {
     if (typeof window !== "undefined") {
         const user = localStorage.getItem("ministay_user");
@@ -86,13 +131,33 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
     }
   }, [roomId]);
 
-  if (!room) return <div className="p-10 text-center bg-white rounded-xl">Kamar tidak ditemukan</div>;
+  // RENDER LOADING STATE 
+  if (isLoading) {
+      return (
+        <div className={`w-full max-w-lg mx-auto h-[500px] flex flex-col items-center justify-center bg-white ${isModal ? 'rounded-2xl' : ''}`}>
+            <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+            <p className="text-gray-500 text-sm">Memuat detail kamar...</p>
+        </div>
+      );
+  }
 
-  const averageRating = reviews.length > 0 
+  // RENDER ERROR STATE
+  if (error || !room) {
+      return (
+        <div className="p-10 text-center bg-white rounded-xl w-full max-w-lg mx-auto">
+            <p className="text-red-500 mb-4">{error || "Kamar tidak ditemukan"}</p>
+            <button onClick={() => isModal ? router.back() : window.location.href="/"} className="text-blue-600 underline text-sm">
+                Kembali
+            </button>
+        </div>
+      );
+  }
+
+const averageRating = reviews.length > 0 
     ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1) 
-    : room.rating;
+    : (room.rating || 0).toFixed(1);
 
-  // --- LOGIC KALENDER ---
+  // LOGIC KALENDER 
   const isDateBooked = (date: Date) => {
     const target = new Date(date);
     target.setHours(0, 0, 0, 0);
@@ -190,18 +255,26 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
   return (
     <div className={`w-full max-w-lg mx-auto overflow-hidden flex flex-col ${isModal ? 'rounded-2xl shadow-2xl bg-white/95 backdrop-blur-md max-h-[85vh]' : 'min-h-screen bg-white'}`}>
       
-      <div className="relative h-64 w-full shrink-0 group">
-        <Image src={room.image} alt={room.name} fill className="object-cover" />
+      {/* --- GAMBAR HEADER --- */}
+      <div className="relative h-64 w-full shrink-0 group bg-gray-200">
+        <Image 
+            src={room.image} 
+            alt={room.name} 
+            fill 
+            className="object-cover" 
+            sizes="(max-width: 768px) 100vw, 500px"
+        />
         <button onClick={() => isModal ? router.back() : window.location.href="/"} className="absolute top-4 left-4 bg-black/20 hover:bg-black/40 text-white p-2 rounded-full backdrop-blur-sm transition z-10">
           {isModal ? <X className="w-5 h-5"/> : "⬅ Kembali"}
         </button>
         <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent"></div>
         <div className="absolute bottom-4 left-4 text-white">
             <h1 className="text-2xl font-bold shadow-black drop-shadow-md">{room.name}</h1>
-            <p className="text-sm opacity-90 flex items-center gap-1"><MapPin size={14}/> {room.location || 'Jakarta Selatan'}</p>
+            <p className="text-sm opacity-90 flex items-center gap-1"><MapPin size={14}/> {room.location}</p>
         </div>
       </div>
 
+      {/* --- KONTEN DETAIL --- */}
       <div className="p-6 overflow-y-auto flex-1 scrollbar-hide">
         <div className="flex justify-between items-center mb-6">
             <div>
@@ -215,6 +288,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
             </div>
         </div>
 
+        {/* --- CALENDAR WIDGET --- */}
         <div className="mb-6 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-600"/> Ketersediaan</h3>
@@ -244,13 +318,12 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
         </div>
 
         <div className="mb-6 space-y-4">
-            {/* --- BAGIAN FASILITAS YANG DIPERBAIKI --- */}
             <div>
                 <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Fasilitas</h3>
                 <div className="flex flex-wrap gap-2">
                     {room.facilities.map((fas, i) => (
                         <span key={i} className="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-600 text-xs rounded-xl font-medium flex items-center gap-2">
-                            {getFacilityIcon(fas)} {/* Panggil Helper Icon */}
+                            {getFacilityIcon(fas)}
                             {fas}
                         </span>
                     ))}
