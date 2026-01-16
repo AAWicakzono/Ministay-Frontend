@@ -6,12 +6,11 @@ import { rooms as initialRooms } from "@/lib/data";
 import RoomCard from "@/components/RoomCard";
 import { Room } from "@/types";
 import { Search, Calendar, User, Filter, ShieldCheck, Smile, Home, X, RotateCcw } from "lucide-react";
+import apiClient from "@/lib/axios";
+import { isAxiosError } from "axios";
 
-// KONFIGURASI API 
-const API_URL = "https://ministay-be-production.up.railway.app/api/rooms";
 const BASE_IMAGE_URL = "https://ministay-be-production.up.railway.app/storage/"; 
 
-// Helper Parse Date 
 const parseDate = (dateStr: string) => {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d);
@@ -26,39 +25,30 @@ export default function HomePage() {
   const [searchDate, setSearchDate] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]); 
 
-  // LOAD DATA 
-  const loadData = useCallback(async () => {
+const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch dari API
-      const res = await fetch(API_URL);
-      if (!res.ok) throw new Error("Gagal mengambil data");
+      const response = await apiClient.get('/api/rooms');
+      const backendData = response.data;
       
-      const backendData = await res.json();
-      const rawData = Array.isArray(backendData) ? backendData : backendData.data;
+      const rawData = Array.isArray(backendData) ? backendData : backendData.data || [];
 
       const mappedRooms: Room[] = rawData.map((item: any) => {
-        const coverImage = item.images?.find((img: any) => img.is_cover)?.path || item.images?.[0]?.path;
-        const imageUrl = coverImage ? `${BASE_IMAGE_URL}${coverImage}` : "https://placehold.co/600x400?text=No+Image";
-        const randomRating = 4.5 + (Math.random() * 0.5);
-        const fixedRating = Number(randomRating.toFixed(1));
+        const imageUrl = item.cover_image 
+            ? `${BASE_IMAGE_URL}${item.cover_image}` 
+            : "https://placehold.co/600x400?text=No+Image";
 
-        let roomType = "Standard";
-        if (item.name.toLowerCase().includes("deluxe")) roomType = "Deluxe";
-        else if (item.name.toLowerCase().includes("vip")) roomType = "VIP";
-        else if (item.name.toLowerCase().includes("family")) roomType = "Suite";
-
-        return {
+      return {
           id: item.id,
           name: item.name,
-          type: roomType, 
+          type: item.type || "Standard", 
           price: parseInt(item.price_per_day), 
-          status: item.is_available ? "available" : "occupied", 
+          status: "available", 
           image: imageUrl,
-          facilities: ["AC", "WiFi", "TV", "Kamar Mandi Dalam"], 
-          description: item.description || "Kamar nyaman untuk istirahat.",
-          rating: fixedRating,
-          location: "Jakarta Pusat" 
+          facilities: ["AC", "WiFi", "TV"], 
+          description: "Kamar nyaman dengan lokasi strategis.",
+          rating: item.rating ? Number(item.rating) : 4.5,
+          location: item.location || "Lokasi Strategis" 
         };
       });
 
@@ -66,14 +56,14 @@ export default function HomePage() {
       setFilteredRooms(mappedRooms);
 
     } catch (error) {
-      console.error("Error fetching rooms, menggunakan data lokal:", error);
+      console.error("Error loading rooms:", error);
       setAllRooms(initialRooms);
       setFilteredRooms(initialRooms);
     } finally {
       setIsLoading(false);
     }
 
-    // Load Bookings (LocalStorage)
+    // Load Bookings (LocalStorage) untuk cek availability tanggal
     if (typeof window !== "undefined") {
       const storedBookings = localStorage.getItem("ministay_bookings");
       if (storedBookings) setBookings(JSON.parse(storedBookings));
@@ -84,29 +74,7 @@ export default function HomePage() {
     loadData();
   }, [loadData]);
 
-  // HELPER: CEK KAMAR PENUH
-  const isRoomFullThisMonth = (roomId: number) => {
-    if (bookings.length === 0) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    endOfMonth.setHours(0, 0, 0, 0);
-
-    const roomBookings = bookings
-        .filter((b: any) => String(b.roomId) === String(roomId) && b.status !== 'cancelled')
-        .map((b: any) => ({ start: parseDate(b.checkIn).getTime(), end: parseDate(b.checkOut).getTime() }));
-
-    let currentDate = new Date(today);
-    while (currentDate <= endOfMonth) {
-        const time = currentDate.getTime();
-        const isBooked = roomBookings.some(b => time >= b.start && time < b.end);
-        if (!isBooked) return false; 
-        currentDate.setDate(currentDate.getDate() + 1);
-    }
-    return true;
-  };
-
-  // FILTERING LOGIC
+  // --- LOGIKA FILTERING TETAP SAMA SEPERTI SEBELUMNYA ---
   useEffect(() => {
     let result = [...allRooms];
 
@@ -139,7 +107,7 @@ export default function HomePage() {
     if (activeFilters.length > 0) {
         result = result.filter(r => {
             return activeFilters.every(filter => {
-                if (filter === "available") return r.status === 'available'; // Simplified
+                if (filter === "available") return r.status === 'available';
                 if (filter === "cheap") return r.price < 200000;
                 if (filter === "premium") return r.price >= 200000;
                 return true;
@@ -229,7 +197,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* FILTER */}
+      {/* FILTER BUTTONS */}
       <div className="max-w-4xl mx-auto px-6 mt-8 mb-6">
         <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-gray-900 flex items-center gap-2"><Filter className="w-4 h-4" /> Filter & Kategori</h2>

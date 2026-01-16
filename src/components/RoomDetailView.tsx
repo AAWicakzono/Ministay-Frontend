@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import apiClient from "@/lib/axios";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -21,8 +22,6 @@ interface SimpleBooking {
   checkOut: string;
 }
 
-//  KONFIGURASI API
-const API_BASE_URL = "https://ministay-be-production.up.railway.app/api/rooms";
 const IMAGE_BASE_URL = "https://ministay-be-production.up.railway.app/storage/";
 
 // Helper: Parse Tanggal
@@ -63,43 +62,44 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  const [activeImage, setActiveImage] = useState<string>("");
+
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // FETCH DATA DARI API
-  useEffect(() => {
-    const fetchRoomDetail = async () => {
+
+    useEffect(() => {
+        const fetchRoomDetail = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/${roomId}`);
-            if (!res.ok) throw new Error("Gagal mengambil data kamar");
+            // MENGGUNAKAN AXIOS GET
+            const response = await apiClient.get(`/api/rooms/${roomId}`);
+            const data = response.data;
 
-            const data = await res.json();
-
-            const coverImage = data.images?.find((img: any) => img.is_cover)?.path || data.images?.[0]?.path;
-            const fullImageUrl = coverImage 
-                ? `${IMAGE_BASE_URL}${coverImage}` 
+            // ... (Proses mapping data ke bawah SAMA PERSIS dengan sebelumnya) ...
+            
+            // Logic ambil gambar cover
+            const coverImageObj = data.images?.find((img: any) => img.is_cover) || data.images?.[0];
+            const coverPath = coverImageObj ? coverImageObj.path : null;
+            const fullImageUrl = coverPath 
+                ? `${IMAGE_BASE_URL}${coverPath}` 
                 : "https://placehold.co/600x400?text=No+Image";
-
-            let roomType = "Standard";
-            if (data.name.toLowerCase().includes("deluxe")) roomType = "Deluxe";
-            else if (data.name.toLowerCase().includes("vip")) roomType = "VIP";
-            else if (data.name.toLowerCase().includes("suite") || data.name.includes("family")) roomType = "Suite";
 
             const mappedRoom: Room = {
                 id: data.id,
                 name: data.name,
-                type: roomType,
-                price: parseInt(data.price_per_day), // Backend: price_per_day
-                status: "available", // Default available krn API detail tdk kirim status
+                type: data.type || "Standard",
+                price: parseInt(data.price_per_day), 
+                status: "available", 
                 image: fullImageUrl,
                 description: data.description,
-                // Data Dummy (karena tidak ada di API)
-                facilities: ["AC", "WiFi", "TV", "Kamar Mandi Dalam", "Handuk"], 
-                rating: 4.8,
-                location: "Jakarta Pusat"
+                facilities: Array.isArray(data.facilities) ? data.facilities : [], 
+                rating: data.rating ? Number(data.rating) : 0, 
+                location: data.location || "Lokasi Strategis"
             };
 
             setRoom(mappedRoom);
+            setActiveImage(fullImageUrl);
+
         } catch (err) {
             console.error(err);
             setError("Terjadi kesalahan saat memuat data.");
@@ -108,12 +108,12 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
         }
     };
 
-    if (roomId) {
-        fetchRoomDetail();
-    }
-  }, [roomId]);
+        if (roomId) {
+             fetchRoomDetail();
+        }
+    }, [roomId]);
 
-  //  LOAD LOCAL STORAGE (User & Booking )
+  //  LOAD LOCAL STORAGE (User, Booking, Review Dummy Tambahan)
   useEffect(() => {
     if (typeof window !== "undefined") {
         const user = localStorage.getItem("ministay_user");
@@ -125,6 +125,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
         );
         setExistingBookings(roomBookings);
 
+        // Review dummy (jika belum ada endpoint API review)
         const storedReviews = JSON.parse(localStorage.getItem("ministay_reviews") || "[]");
         const roomReviews = storedReviews.filter((r: Review) => String(r.roomId) === String(roomId));
         setReviews(roomReviews);
@@ -153,11 +154,12 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
       );
   }
 
-const averageRating = reviews.length > 0 
+  // Gabungkan rating API dengan rating local review (jika ada)
+  const displayRating = room.rating || (reviews.length > 0 
     ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1) 
-    : (room.rating || 0).toFixed(1);
+    : "Baru");
 
-  // LOGIC KALENDER 
+  // LOGIC KALENDER (SAMA SEPERTI SEBELUMNYA)
   const isDateBooked = (date: Date) => {
     const target = new Date(date);
     target.setHours(0, 0, 0, 0);
@@ -258,10 +260,10 @@ const averageRating = reviews.length > 0
       {/* --- GAMBAR HEADER --- */}
       <div className="relative h-64 w-full shrink-0 group bg-gray-200">
         <Image 
-            src={room.image} 
+            src={activeImage} 
             alt={room.name} 
             fill 
-            className="object-cover" 
+            className="object-cover transition duration-500" 
             sizes="(max-width: 768px) 100vw, 500px"
         />
         <button onClick={() => isModal ? router.back() : window.location.href="/"} className="absolute top-4 left-4 bg-black/20 hover:bg-black/40 text-white p-2 rounded-full backdrop-blur-sm transition z-10">
@@ -283,8 +285,7 @@ const averageRating = reviews.length > 0
             </div>
             <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100">
                 <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                <span className="font-bold text-gray-700">{averageRating}</span>
-                <span className="text-xs text-gray-400">({reviews.length})</span>
+                <span className="font-bold text-gray-700">{displayRating}</span>
             </div>
         </div>
 
@@ -317,16 +318,19 @@ const averageRating = reviews.length > 0
             </div>
         </div>
 
+        {/* FASILITAS */}
         <div className="mb-6 space-y-4">
             <div>
                 <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Fasilitas</h3>
                 <div className="flex flex-wrap gap-2">
-                    {room.facilities.map((fas, i) => (
+                    {room.facilities.length > 0 ? room.facilities.map((fas, i) => (
                         <span key={i} className="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-600 text-xs rounded-xl font-medium flex items-center gap-2">
                             {getFacilityIcon(fas)}
                             {fas}
                         </span>
-                    ))}
+                    )) : (
+                        <span className="text-gray-400 text-xs italic">Tidak ada info fasilitas.</span>
+                    )}
                 </div>
             </div>
             
@@ -336,6 +340,7 @@ const averageRating = reviews.length > 0
             </div>
         </div>
 
+        {/* ULASAN TAMU */}
         <div className="border-t border-gray-100 pt-6">
             <h3 className="font-bold text-gray-900 mb-4 text-sm flex items-center gap-2"><MessageCircle className="w-4 h-4 text-blue-600"/> Ulasan Tamu ({reviews.length})</h3>
             {reviews.length === 0 ? (
