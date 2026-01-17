@@ -5,13 +5,7 @@ import { Plus, Search, Edit, Trash2, X, Save, Image as ImageIcon, MapPin, Upload
 import { Room } from "@/types";
 import { useNotification } from "@/context/NotificationContext"; 
 import Image from "next/image";
-import axios from "axios";
-
-// --- KONFIGURASI URL ---
-const BASE_URL = "https://ministay-be-production.up.railway.app";
-const API_PUBLIC_URL = `${BASE_URL}/api/rooms`;       
-const API_ADMIN_URL  = `${BASE_URL}/api/admin/rooms`; 
-const IMAGE_BASE_URL = `${BASE_URL}/storage/`;
+import apiClient, { IMAGE_BASE_URL } from "@/lib/axios"; 
 
 export default function ManageRoomsPage() {
   const { showToast, showPopup } = useNotification();
@@ -32,13 +26,11 @@ export default function ManageRoomsPage() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string>("");
 
-  // FETCH DATA (DENGAN ANTI-CACHE)
+  // FETCH DATA 
   const fetchRooms = useCallback(async () => {
-    
     try {
-        const response = await axios.get(API_PUBLIC_URL, {
-            params: { _t: new Date().getTime() },
-            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        const response = await apiClient.get('/api/rooms', {
+            params: { _t: new Date().getTime() }
         });
 
         const rawData = Array.isArray(response.data) ? response.data : response.data.data || [];
@@ -109,14 +101,12 @@ export default function ManageRoomsPage() {
     setIsModalOpen(true);
   };
 
-  // --- SIMPAN DATA ---
+  // --- SIMPAN DATA (CREATE / UPDATE) ---
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
 
     try {
-        const token = localStorage.getItem("ministay_admin_token");
-        if (!token) throw new Error("Token tidak ditemukan. Silakan login ulang.");
 
         const payload = new FormData();
         payload.append('name', formData.name || "");
@@ -136,37 +126,30 @@ export default function ManageRoomsPage() {
             payload.append('image', selectedImage);
         }
 
-        const authHeaders = {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-        };
-
         if (isEditing && formData.id) {
+            // === UPDATE ===
             payload.append('_method', 'PUT'); 
-            await axios.post(`${API_ADMIN_URL}/${formData.id}`, payload, { headers: authHeaders });
+            await apiClient.post(`/api/admin/rooms/${formData.id}`, payload);
             showToast("Data kamar berhasil diperbarui", "success");
         } else {
-            await axios.post(API_ADMIN_URL, payload, { headers: authHeaders });
+            // === CREATE ===
+            await apiClient.post('/api/admin/rooms', payload);
             showToast("Kamar baru berhasil ditambahkan", "success");
         }
 
-        // Tutup modal dulu biar UI responsif
         setIsModalOpen(false);
-        setIsLoading(true); // Tampilkan loading di tabel
+        setIsLoading(true);
 
-        // Beri sedikit jeda agar database selesai commit transaksi
+        // Jeda sedikit untuk memberi waktu server proses gambar
         setTimeout(() => {
             fetchRooms(); 
         }, 500);
 
     } catch (error: any) {
         console.error("Save Error:", error);
-        let msg = "Gagal menyimpan data";
-        if (error.response) {
-             msg = error.response.data.message || msg;
-        }
+        const msg = error.response?.data?.message || "Gagal menyimpan data";
         showToast(msg, "error");
-        setIsLoading(false); // Pastikan loading mati jika error
+        setIsLoading(false);
     } finally {
         setIsSaving(false);
     }
@@ -175,21 +158,12 @@ export default function ManageRoomsPage() {
   // --- DELETE ---
   const handleDeleteClick = (id: number) => {
     showPopup("Hapus Kamar?", "Data kamar akan dihapus permanen.", "warning", async () => {
-        setIsLoading(true); // Loading state nyala
+        setIsLoading(true);
         try {
-            const token = localStorage.getItem("ministay_admin_token");
-            if (!token) throw new Error("Token hilang");
-
-            await axios.delete(`${API_ADMIN_URL}/${id}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
-            });
+            await apiClient.delete(`/api/admin/rooms/${id}`);
 
             showToast("Kamar berhasil dihapus", "success");
             
-            // Jeda sedikit + Anti Cache fetch
             setTimeout(() => {
                 fetchRooms();
             }, 300);

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Phone, ArrowRight, X, UserCircle, LockKeyhole, User, Edit2, Loader2 } from "lucide-react";
 import { useNotification } from "@/context/NotificationContext"; 
-import apiClient from "@/lib/axios"; // Pastikan file ini sudah ada
+import apiClient from "@/lib/axios"; 
 import { isAxiosError } from "axios";
 
 interface LoginFormProps {
@@ -89,7 +89,7 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
         }
       }, 1000);
     } 
-    // --- LOGIKA ADMIN (AXIOS) ---
+    // --- LOGIKA ADMIN (MENGGUNAKAN AXIOS CENTRAL) ---
     else {
       if(!adminUser || !adminPass) {
         setLoading(false);
@@ -97,9 +97,8 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
       }
       
       try {
-        console.log("Mencoba login admin...");
-
-        // Kirim Request Login
+        // Tidak perlu hardcode URL, cukup path-nya saja
+        // apiClient sudah tau Base URL-nya
         const response = await apiClient.post('/api/auth/admin/login', {
             name: adminUser,
             password: adminPass
@@ -135,10 +134,10 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
         let errorMessage = "Terjadi kesalahan server.";
         
         if (isAxiosError(error)) {
-             // Cek pesan error dari response backend
+             // Pesan error dari Laravel biasanya ada di error.response.data.message
              errorMessage = error.response?.data?.message || error.message;
              
-             // Optional: Handle 401 Unauthorized spesifik
+             // Opsional: Pesan custom untuk 401
              if (error.response?.status === 401) {
                  errorMessage = "Username atau Password salah.";
              }
@@ -213,7 +212,7 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
             )
           ) : (
              <>
-                {/* FORM ADMIN */}
+                {/* FORM ADMIN: ID/NAME & PASSWORD */}
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Username / ID</label>
                   <div className="relative">

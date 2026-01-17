@@ -1,14 +1,25 @@
 import axios from 'axios';
 
-// Ganti URL ini dengan URL Backend kamu
-// Kalau sedang dev lokal pakai: "http://localhost:8000"
-// Kalau sudah deploy pakai: "https://ministay-be-production.up.railway.app"
+export const BASE_URL = "https://ministay-be-production.up.railway.app";
+export const IMAGE_BASE_URL = `${BASE_URL}/storage/`;
 
 const apiClient = axios.create({
-  baseURL: "https://ministay-be-production.up.railway.app", 
+  baseURL: BASE_URL,
   headers: {
     'Accept': 'application/json',
   },
+});
+
+apiClient.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("ministay_admin_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
 export default apiClient;
