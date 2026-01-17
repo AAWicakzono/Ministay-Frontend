@@ -4,10 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, Edit, Trash2, X, Save, Image as ImageIcon, MapPin, UploadCloud, Loader2 } from "lucide-react";
 import { Room } from "@/types";
 import { useNotification } from "@/context/NotificationContext"; 
-import apiClient from "@/lib/axios"; 
 import Image from "next/image";
+import axios from "axios";
 
-const IMAGE_BASE_URL = "https://ministay-be-production.up.railway.app/storage/";
+// --- KONFIGURASI URL ---
+const BASE_URL = "https://ministay-be-production.up.railway.app";
+const API_PUBLIC_URL = `${BASE_URL}/api/rooms`;       
+const API_ADMIN_URL  = `${BASE_URL}/api/admin/rooms`; 
+const IMAGE_BASE_URL = `${BASE_URL}/storage/`;
 
 export default function ManageRoomsPage() {
   const { showToast, showPopup } = useNotification();
@@ -23,14 +27,20 @@ export default function ManageRoomsPage() {
   
   // State Form
   const [formData, setFormData] = useState<Partial<Room>>({});
+  const [facilitiesInput, setFacilitiesInput] = useState(""); 
+  
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string>("");
 
+  // FETCH DATA (DENGAN ANTI-CACHE)
   const fetchRooms = useCallback(async () => {
-    setIsLoading(true);
+    
     try {
-        const response = await apiClient.get('/api/rooms');
-        
+        const response = await axios.get(API_PUBLIC_URL, {
+            params: { _t: new Date().getTime() },
+            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        });
+
         const rawData = Array.isArray(response.data) ? response.data : response.data.data || [];
         
         const mappedRooms: Room[] = rawData.map((item: any) => ({
@@ -40,7 +50,7 @@ export default function ManageRoomsPage() {
             price: Number(item.price_per_day),
             status: item.is_available === false ? 'occupied' : 'available',
             image: item.cover_image ? `${IMAGE_BASE_URL}${item.cover_image}` : "",
-            facilities: item.facilities || [],
+            facilities: Array.isArray(item.facilities) ? item.facilities : [],
             description: item.description || "",
             location: item.location || ""
         }));
@@ -58,15 +68,10 @@ export default function ManageRoomsPage() {
     fetchRooms();
   }, [fetchRooms]);
 
+  // --- HANDLERS ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: name === "price" ? Number(value) : value }));
-  };
-
-  const handleFacilitiesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const facilitiesArray = value.split(",").map((item) => item.trim()).filter(i => i !== "");
-    setFormData(prev => ({ ...prev, facilities: facilitiesArray }));
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,15 +81,16 @@ export default function ManageRoomsPage() {
             return showToast("Ukuran gambar maksimal 2MB", "error");
         }
         setSelectedImage(file);
-        setPreviewImage(URL.createObjectURL(file)); // Preview lokal
+        setPreviewImage(URL.createObjectURL(file)); 
     }
   };
 
   const handleAddClick = () => {
     setIsEditing(false);
     setFormData({ 
-        name: "", type: "Single", price: 0, location: "", description: "", facilities: [] 
+        name: "", type: "Single", price: 0, location: "", description: "" 
     });
+    setFacilitiesInput(""); 
     setSelectedImage(null);
     setPreviewImage("");
     setIsModalOpen(true);
@@ -93,16 +99,25 @@ export default function ManageRoomsPage() {
   const handleEditClick = (room: Room) => {
     setIsEditing(true);
     setFormData(room);
+    if (room.facilities && room.facilities.length > 0) {
+        setFacilitiesInput(room.facilities.join(", "));
+    } else {
+        setFacilitiesInput("");
+    }
     setSelectedImage(null);
     setPreviewImage(room.image || ""); 
     setIsModalOpen(true);
   };
 
+  // --- SIMPAN DATA ---
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
 
     try {
+        const token = localStorage.getItem("ministay_admin_token");
+        if (!token) throw new Error("Token tidak ditemukan. Silakan login ulang.");
+
         const payload = new FormData();
         payload.append('name', formData.name || "");
         payload.append('type', formData.type || "Standard");
@@ -110,8 +125,9 @@ export default function ManageRoomsPage() {
         payload.append('location', formData.location || "");
         payload.append('description', formData.description || "");
         
-        if (formData.facilities && formData.facilities.length > 0) {
-            formData.facilities.forEach((fac, index) => {
+        if (facilitiesInput.trim()) {
+            const facilitiesArray = facilitiesInput.split(",").map(f => f.trim()).filter(f => f !== "");
+            facilitiesArray.forEach((fac, index) => {
                 payload.append(`facilities[${index}]`, fac);
             });
         }
@@ -120,42 +136,71 @@ export default function ManageRoomsPage() {
             payload.append('image', selectedImage);
         }
 
+        const authHeaders = {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+        };
+
         if (isEditing && formData.id) {
             payload.append('_method', 'PUT'); 
-            await apiClient.post(`/api/rooms/${formData.id}`, payload);
-            
+            await axios.post(`${API_ADMIN_URL}/${formData.id}`, payload, { headers: authHeaders });
             showToast("Data kamar berhasil diperbarui", "success");
         } else {
-            await apiClient.post('/api/rooms', payload);
-            
+            await axios.post(API_ADMIN_URL, payload, { headers: authHeaders });
             showToast("Kamar baru berhasil ditambahkan", "success");
         }
 
-        fetchRooms();
+        // Tutup modal dulu biar UI responsif
         setIsModalOpen(false);
+        setIsLoading(true); // Tampilkan loading di tabel
+
+        // Beri sedikit jeda agar database selesai commit transaksi
+        setTimeout(() => {
+            fetchRooms(); 
+        }, 500);
 
     } catch (error: any) {
         console.error("Save Error:", error);
-        const msg = error.response?.data?.message || error.message || "Gagal menyimpan data";
+        let msg = "Gagal menyimpan data";
+        if (error.response) {
+             msg = error.response.data.message || msg;
+        }
         showToast(msg, "error");
+        setIsLoading(false); // Pastikan loading mati jika error
     } finally {
         setIsSaving(false);
     }
   };
 
+  // --- DELETE ---
   const handleDeleteClick = (id: number) => {
     showPopup("Hapus Kamar?", "Data kamar akan dihapus permanen.", "warning", async () => {
+        setIsLoading(true); // Loading state nyala
         try {
-            await apiClient.delete(`/api/rooms/${id}`);
+            const token = localStorage.getItem("ministay_admin_token");
+            if (!token) throw new Error("Token hilang");
+
+            await axios.delete(`${API_ADMIN_URL}/${id}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
             showToast("Kamar berhasil dihapus", "success");
-            fetchRooms(); 
+            
+            // Jeda sedikit + Anti Cache fetch
+            setTimeout(() => {
+                fetchRooms();
+            }, 300);
+            
         } catch (error) {
             showToast("Gagal menghapus kamar", "error");
+            setIsLoading(false);
         }
     });
   };
 
-  // Filter Pencarian di Client-side
   const filteredRooms = rooms.filter(r => 
     r.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (r.location && r.location.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -163,7 +208,7 @@ export default function ManageRoomsPage() {
 
   return (
     <div>
-      {/* HEADER PAGE */}
+      {/* HEADER & SEARCH */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
             <h1 className="text-2xl font-bold text-gray-900">Kelola Kamar</h1>
@@ -174,13 +219,12 @@ export default function ManageRoomsPage() {
         </button>
       </div>
 
-      {/* SEARCH BAR */}
       <div className="bg-white p-4 rounded-t-2xl border-b border-gray-100 flex items-center gap-2">
         <Search className="text-gray-400 w-5 h-5" />
         <input type="text" placeholder="Cari nama kamar atau lokasi..." className="outline-none text-sm w-full" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
       </div>
 
-      {/* TABLE DATA */}
+      {/* TABEL DATA */}
       <div className="bg-white rounded-b-2xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold">
@@ -239,7 +283,7 @@ export default function ManageRoomsPage() {
         </table>
       </div>
 
-      {/* MODAL FORM (ADD/EDIT) */}
+      {/* MODAL FORM */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
@@ -302,9 +346,8 @@ export default function ManageRoomsPage() {
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Fasilitas (Pisahkan dengan koma)</label>
                         <input 
-                            name="facilities" 
-                            value={formData.facilities ? formData.facilities.join(", ") : ""} 
-                            onChange={handleFacilitiesChange} 
+                            value={facilitiesInput} 
+                            onChange={(e) => setFacilitiesInput(e.target.value)} 
                             type="text" 
                             className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" 
                             placeholder="AC, WiFi, TV"
@@ -324,7 +367,6 @@ export default function ManageRoomsPage() {
                         />
                     </div>
 
-                    {/* BUTTONS */}
                     <div className="pt-4 flex gap-3">
                         <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition">Batal</button>
                         <button type="submit" disabled={isSaving} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition flex items-center justify-center gap-2 disabled:opacity-70">
