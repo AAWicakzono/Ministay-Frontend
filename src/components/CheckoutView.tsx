@@ -2,17 +2,30 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Clock, ShieldCheck, CreditCard, X } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Clock, 
+  ShieldCheck, 
+  CreditCard, 
+  X, 
+  QrCode, 
+  Wallet, 
+  MessageCircle 
+} from "lucide-react"; // Ditambahkan icon baru
 import { Room } from "@/types";
 import { useNotification } from "@/context/NotificationContext";
+
 interface CheckoutViewProps {
   isModal?: boolean;
 }
 
+// Definisikan tipe metode pembayaran
+type PaymentMethodType = 'qris' | 'debit' | 'emoney' | 'manual';
+
 export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { showPopup, showToast } = useNotification(); 
+  const { showPopup } = useNotification(); 
   
   const roomId = searchParams.get("roomId");
   const checkIn = searchParams.get("checkIn");
@@ -22,6 +35,9 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(900); 
+  
+  // State untuk metode pembayaran yang dipilih (Default QRIS)
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodType>('qris');
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -30,8 +46,6 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
       setTimeLeft((prevTime) => {
         if (prevTime <= 1) {
           clearInterval(timer);
-          
-
           showPopup(
             "Waktu Habis",
             "Sesi pembayaran Anda telah berakhir. Silakan ulangi pemesanan.",
@@ -41,7 +55,6 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
                else router.push("/");
             }
           );
-          
           return 0;
         }
         return prevTime - 1;
@@ -79,33 +92,85 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
   const adminFee = 5000;
   const grandTotal = totalPrice + adminFee;
 
+  // Daftar opsi pembayaran
+  const paymentMethods = [
+    { 
+      id: 'qris', 
+      name: 'QRIS (Instant)', 
+      desc: 'Scan & Verifikasi Otomatis', 
+      icon: QrCode,
+      color: 'text-blue-600'
+    },
+    { 
+      id: 'debit', 
+      name: 'Kartu Debit / Kredit', 
+      desc: 'Visa, Mastercard, JCB', 
+      icon: CreditCard,
+      color: 'text-indigo-600'
+    },
+    { 
+      id: 'emoney', 
+      name: 'E-Wallet', 
+      desc: 'GoPay, OVO, Dana, ShopeePay', 
+      icon: Wallet,
+      color: 'text-purple-600'
+    },
+    { 
+      id: 'manual', 
+      name: 'Transfer Manual', 
+      desc: 'Konfirmasi via WhatsApp Admin', 
+      icon: MessageCircle,
+      color: 'text-green-600'
+    }
+  ];
+
   const handlePayment = () => {
     setLoading(true);
     setTimeout(() => {
+      const bookingId = `BK-${Date.now()}`;
+      
       const newBooking = {
-        id: `BK-${Date.now()}`,
+        id: bookingId,
         roomId: room.id,
         roomName: room.name,
         guestName: "Tamu (Anda)",
         checkIn,
         checkOut,
         totalPrice: grandTotal,
-        status: "confirmed",
+        status: selectedMethod === 'manual' ? "pending" : "confirmed", // Jika manual, status pending dulu
+        paymentMethod: selectedMethod,
         paymentDate: new Date().toLocaleString()
       };
 
       const existingBookings = JSON.parse(localStorage.getItem("ministay_bookings") || "[]");
       localStorage.setItem("ministay_bookings", JSON.stringify([newBooking, ...existingBookings]));
 
-      showPopup(
-        "Pembayaran Berhasil!",
-        "E-Ticket telah diterbitkan. Tunjukkan kepada resepsionis saat check-in.",
-        "success",
-        () => {
-            if (isModal) window.location.href = "/my-bookings";
-            else router.push("/my-bookings");
-        }
-      );
+      // Pesan Popup berbeda tergantung metode bayar
+      if (selectedMethod === 'manual') {
+        showPopup(
+            "Booking Berhasil Dibuat",
+            "Silakan hubungi Admin via WhatsApp untuk menyelesaikan transfer.",
+            "success",
+            () => {
+                // Redirect ke WhatsApp
+                const message = `Halo Admin Ministay, saya ingin konfirmasi pembayaran manual untuk Order ID: ${bookingId} sebesar Rp ${grandTotal.toLocaleString("id-ID")}`;
+                window.open(`https://wa.me/6281234567890?text=${encodeURIComponent(message)}`, '_blank');
+                
+                if (isModal) window.location.href = "/my-bookings";
+                else router.push("/my-bookings");
+            }
+        );
+      } else {
+        showPopup(
+            "Pembayaran Berhasil!",
+            "E-Ticket telah diterbitkan. Tunjukkan kepada resepsionis saat check-in.",
+            "success",
+            () => {
+                if (isModal) window.location.href = "/my-bookings";
+                else router.push("/my-bookings");
+            }
+        );
+      }
       
     }, 2000);
   };
@@ -156,16 +221,43 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
             </div>
         </div>
 
-        {/* Metode Bayar */}
+        {/* Metode Bayar (Diperbarui) */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
             <h3 className="font-bold text-sm mb-3">Metode Pembayaran</h3>
-            <div className="flex items-center gap-3 p-3 border border-blue-500 bg-blue-50 rounded-lg cursor-pointer">
-                <CreditCard className="w-5 h-5 text-blue-600"/>
-                <div className="flex-1">
-                    <p className="text-sm font-bold text-blue-900">QRIS (Instant)</p>
-                    <p className="text-xs text-blue-600">Scan & Verifikasi Otomatis</p>
-                </div>
-                <div className="w-4 h-4 bg-blue-600 rounded-full border-2 border-white ring-1 ring-blue-600"></div>
+            <div className="space-y-3">
+                {paymentMethods.map((method) => {
+                    const Icon = method.icon;
+                    const isSelected = selectedMethod === method.id;
+
+                    return (
+                        <div 
+                            key={method.id}
+                            onClick={() => setSelectedMethod(method.id as PaymentMethodType)}
+                            className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                                isSelected 
+                                ? 'border-blue-500 bg-blue-50' 
+                                : 'border-gray-200 hover:bg-gray-50'
+                            }`}
+                        >
+                            <Icon className={`w-5 h-5 ${method.color}`}/>
+                            <div className="flex-1">
+                                <p className={`text-sm font-bold ${isSelected ? 'text-blue-900' : 'text-gray-700'}`}>
+                                    {method.name}
+                                </p>
+                                <p className="text-xs text-gray-500">{method.desc}</p>
+                            </div>
+                            
+                            {/* Radio Circle Indicator */}
+                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                isSelected 
+                                ? 'bg-blue-600 border-transparent' 
+                                : 'bg-white border-gray-300'
+                            }`}>
+                                {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         </div>
       </div>
@@ -175,10 +267,18 @@ export default function CheckoutView({ isModal = false }: CheckoutViewProps) {
         <button 
             onClick={handlePayment}
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-lg shadow-blue-200 disabled:bg-gray-400"
+            className={`w-full py-3.5 rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg disabled:bg-gray-400 text-white ${
+                selectedMethod === 'manual' 
+                ? 'bg-green-600 hover:bg-green-700 shadow-green-200' // Warna hijau untuk WA
+                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
+            }`}
         >
-            {loading ? "Memproses..." : `Bayar Rp ${grandTotal.toLocaleString("id-ID")}`}
-            {!loading && <ShieldCheck className="w-4 h-4"/>}
+            {loading ? "Memproses..." : (
+                selectedMethod === 'manual' 
+                ? "Hubungi Admin via WA" 
+                : `Bayar Rp ${grandTotal.toLocaleString("id-ID")}`
+            )}
+            {!loading && (selectedMethod === 'manual' ? <MessageCircle className="w-4 h-4"/> : <ShieldCheck className="w-4 h-4"/>)}
         </button>
       </div>
     </div>
