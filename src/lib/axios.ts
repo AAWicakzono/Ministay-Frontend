@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-export const BASE_URL = "https://ministay-be-production.up.railway.app";
+
+export const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export const IMAGE_BASE_URL = `${BASE_URL}/storage/`;
 
 const apiClient = axios.create({

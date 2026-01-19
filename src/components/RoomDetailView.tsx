@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import apiClient from "@/lib/axios";
+import apiClient, { IMAGE_BASE_URL } from "@/lib/axios";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -21,8 +21,6 @@ interface SimpleBooking {
   checkIn: string;
   checkOut: string;
 }
-
-const IMAGE_BASE_URL = "https://ministay-be-production.up.railway.app/storage/";
 
 // Helper: Parse Tanggal
 const parseDate = (dateStr: string) => {

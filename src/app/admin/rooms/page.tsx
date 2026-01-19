@@ -10,7 +10,6 @@ import apiClient, { IMAGE_BASE_URL } from "@/lib/axios";
 export default function ManageRoomsPage() {
   const { showToast, showPopup } = useNotification();
   
-  // --- STATE ---
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -19,18 +18,17 @@ export default function ManageRoomsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   
-  // State Form
   const [formData, setFormData] = useState<Partial<Room>>({});
   const [facilitiesInput, setFacilitiesInput] = useState(""); 
   
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string>("");
 
-  // FETCH DATA 
+  // --- FETCH DATA ---
   const fetchRooms = useCallback(async () => {
     try {
         const response = await apiClient.get('/api/rooms', {
-            params: { _t: new Date().getTime() }
+            params: { _t: new Date().getTime() } 
         });
 
         const rawData = Array.isArray(response.data) ? response.data : response.data.data || [];
@@ -41,6 +39,7 @@ export default function ManageRoomsPage() {
             type: item.type || "Standard",
             price: Number(item.price_per_day),
             status: item.is_available === false ? 'occupied' : 'available',
+            // Gunakan IMAGE_BASE_URL yang diimport
             image: item.cover_image ? `${IMAGE_BASE_URL}${item.cover_image}` : "",
             facilities: Array.isArray(item.facilities) ? item.facilities : [],
             description: item.description || "",
@@ -107,7 +106,6 @@ export default function ManageRoomsPage() {
     setIsSaving(true);
 
     try {
-
         const payload = new FormData();
         payload.append('name', formData.name || "");
         payload.append('type', formData.type || "Standard");
@@ -127,12 +125,10 @@ export default function ManageRoomsPage() {
         }
 
         if (isEditing && formData.id) {
-            // === UPDATE ===
             payload.append('_method', 'PUT'); 
             await apiClient.post(`/api/admin/rooms/${formData.id}`, payload);
             showToast("Data kamar berhasil diperbarui", "success");
         } else {
-            // === CREATE ===
             await apiClient.post('/api/admin/rooms', payload);
             showToast("Kamar baru berhasil ditambahkan", "success");
         }
@@ -140,7 +136,6 @@ export default function ManageRoomsPage() {
         setIsModalOpen(false);
         setIsLoading(true);
 
-        // Jeda sedikit untuk memberi waktu server proses gambar
         setTimeout(() => {
             fetchRooms(); 
         }, 500);

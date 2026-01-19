@@ -7,9 +7,6 @@ import RoomCard from "@/components/RoomCard";
 import { Room } from "@/types";
 import { Search, Calendar, User, Filter, ShieldCheck, Smile, Home, X, RotateCcw } from "lucide-react";
 import apiClient from "@/lib/axios";
-import { isAxiosError } from "axios";
-
-const BASE_IMAGE_URL = "https://ministay-be-production.up.railway.app/storage/"; 
 
 const parseDate = (dateStr: string) => {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -35,7 +32,7 @@ const loadData = useCallback(async () => {
 
       const mappedRooms: Room[] = rawData.map((item: any) => {
         const imageUrl = item.cover_image 
-            ? `${BASE_IMAGE_URL}${item.cover_image}` 
+          ? `${apiClient.defaults.baseURL}/storage/${item.cover_image}`
             : "https://placehold.co/600x400?text=No+Image";
 
       return {
