@@ -1,17 +1,16 @@
-import axios from 'axios';
+import axios from "axios";
 
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-export const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-export const IMAGE_BASE_URL = `${BASE_URL}/storage/`;
-
-const apiClient = axios.create({
+const api = axios.create({
   baseURL: BASE_URL,
+  timeout: 10000,
   headers: {
-    'Accept': 'application/json',
+    Accept: "application/json",
   },
 });
 
-apiClient.interceptors.request.use((config) => {
+api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("ministay_admin_token");
     if (token) {
@@ -19,8 +18,16 @@ apiClient.interceptors.request.use((config) => {
     }
   }
   return config;
-}, (error) => {
-  return Promise.reject(error);
 });
 
-export default apiClient;
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("ministay_admin_token");
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default api;

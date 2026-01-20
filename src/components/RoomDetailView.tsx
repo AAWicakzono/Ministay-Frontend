@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import apiClient, { IMAGE_BASE_URL } from "@/lib/axios";
+import apiClient from "@/lib/axios";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { 
-  X, MapPin, Star, Wind, Wifi, Tv, Calendar, 
+import {
+  X, MapPin, Star, Wind, Wifi, Tv, Calendar,
   ChevronLeft, ChevronRight, MessageCircle, UserCircle, LogIn,
   BedDouble, Bath, Coffee, Utensils, Armchair, Briefcase, Loader2
-} from "lucide-react"; 
+} from "lucide-react";
 import { Room, Review } from "@/types";
 
 interface RoomDetailViewProps {
@@ -22,140 +22,135 @@ interface SimpleBooking {
   checkOut: string;
 }
 
-// Helper: Parse Tanggal
 const parseDate = (dateStr: string) => {
-    if (!dateStr) return new Date();
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d);
+  if (!dateStr) return new Date();
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
 };
 
-// HELPER: Deteksi Ikon Fasilitas
 const getFacilityIcon = (name: string) => {
   const lower = name.toLowerCase();
-  if (lower.includes("ac") || lower.includes("angin")) return <Wind size={14}/>;
-  if (lower.includes("wifi") || lower.includes("internet")) return <Wifi size={14}/>;
-  if (lower.includes("tv") || lower.includes("netflix")) return <Tv size={14}/>;
-  if (lower.includes("bed") || lower.includes("kasur")) return <BedDouble size={14}/>;
-  if (lower.includes("mandi") || lower.includes("bath") || lower.includes("water heater")) return <Bath size={14}/>;
-  if (lower.includes("kitchen") || lower.includes("dapur") || lower.includes("bar")) return <Utensils size={14}/>;
-  if (lower.includes("coffee") || lower.includes("kopi")) return <Coffee size={14}/>;
-  if (lower.includes("sofa") || lower.includes("balcony") || lower.includes("balkon")) return <Armchair size={14}/>;
-  if (lower.includes("desk") || lower.includes("kerja")) return <Briefcase size={14}/>;
-  return <Star size={14}/>;
+  if (lower.includes("ac")) return <Wind size={14} />;
+  if (lower.includes("wifi")) return <Wifi size={14} />;
+  if (lower.includes("tv")) return <Tv size={14} />;
+  if (lower.includes("bed")) return <BedDouble size={14} />;
+  if (lower.includes("bath") || lower.includes("mandi")) return <Bath size={14} />;
+  if (lower.includes("kitchen") || lower.includes("dapur")) return <Utensils size={14} />;
+  if (lower.includes("coffee") || lower.includes("kopi")) return <Coffee size={14} />;
+  if (lower.includes("sofa") || lower.includes("balkon")) return <Armchair size={14} />;
+  if (lower.includes("desk") || lower.includes("kerja")) return <Briefcase size={14} />;
+  return <Star size={14} />;
 };
 
 export default function RoomDetailView({ roomId, isModal = false }: RoomDetailViewProps) {
   const router = useRouter();
-  
-  // State Data Kamar
+
   const [room, setRoom] = useState<Room | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // State Booking & UI
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [existingBookings, setExistingBookings] = useState<SimpleBooking[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [currentDate, setCurrentDate] = useState(new Date()); 
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-
   const [activeImage, setActiveImage] = useState<string>("");
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = new Date().toISOString().split("T")[0];
 
+  useEffect(() => {
+    const fetchRoomDetail = async () => {
+      setIsLoading(true);
+      try {
+        const response = await apiClient.get(`/rooms/${roomId}`);
+        const data = response.data;
 
-    useEffect(() => {
-        const fetchRoomDetail = async () => {
-        setIsLoading(true);
-        try {
-            // MENGGUNAKAN AXIOS GET
-            const response = await apiClient.get(`/api/rooms/${roomId}`);
-            const data = response.data;
+        const coverImageObj =
+          data.images?.find((img: any) => img.is_cover) || data.images?.[0];
 
-            // ... (Proses mapping data ke bawah SAMA PERSIS dengan sebelumnya) ...
-            
-            // Logic ambil gambar cover
-            const coverImageObj = data.images?.find((img: any) => img.is_cover) || data.images?.[0];
-            const coverPath = coverImageObj ? coverImageObj.path : null;
-            const fullImageUrl = coverPath 
-                ? `${IMAGE_BASE_URL}${coverPath}` 
-                : "https://placehold.co/600x400?text=No+Image";
+        const coverPath = coverImageObj?.path ?? null;
 
-            const mappedRoom: Room = {
-                id: data.id,
-                name: data.name,
-                type: data.type || "Standard",
-                price: parseInt(data.price_per_day), 
-                status: "available", 
-                image: fullImageUrl,
-                description: data.description,
-                facilities: Array.isArray(data.facilities) ? data.facilities : [], 
-                rating: data.rating ? Number(data.rating) : 0, 
-                location: data.location || "Lokasi Strategis"
-            };
+        const fullImageUrl =
+          coverPath || "https://placehold.co/600x400?text=No+Image";
 
-            setRoom(mappedRoom);
-            setActiveImage(fullImageUrl);
+        const mappedRoom: Room = {
+          id: data.id,
+          name: data.name,
+          type: data.type || "Standard",
+          price: Number(data.price_per_day),
+          status: "available",
+          image: fullImageUrl,
+          description: data.description,
+          facilities: Array.isArray(data.facilities) ? data.facilities : [],
+          rating: data.rating ? Number(data.rating) : 0,
+          location: data.location || "Lokasi Strategis",
+        };
 
-        } catch (err) {
-            console.error(err);
-            setError("Terjadi kesalahan saat memuat data.");
-        } finally {
-            setIsLoading(false);
-        }
+        setRoom(mappedRoom);
+        setActiveImage(fullImageUrl);
+      } catch (err) {
+        console.error(err);
+        setError("Terjadi kesalahan saat memuat data.");
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-        if (roomId) {
-             fetchRoomDetail();
-        }
-    }, [roomId]);
+    if (roomId) fetchRoomDetail();
+  }, [roomId]);
 
-  //  LOAD LOCAL STORAGE (User, Booking, Review Dummy Tambahan)
   useEffect(() => {
     if (typeof window !== "undefined") {
-        const user = localStorage.getItem("ministay_user");
-        setIsLoggedIn(!!user);
+      const user = localStorage.getItem("ministay_user");
+      setIsLoggedIn(!!user);
 
-        const storedBookings = JSON.parse(localStorage.getItem("ministay_bookings") || "[]");
-        const roomBookings = storedBookings.filter((b: any) => 
-            String(b.roomId) === String(roomId) && b.status !== 'cancelled'
-        );
-        setExistingBookings(roomBookings);
+      const storedBookings = JSON.parse(
+        localStorage.getItem("ministay_bookings") || "[]"
+      );
+      setExistingBookings(
+        storedBookings.filter(
+          (b: any) => String(b.roomId) === String(roomId) && b.status !== "cancelled"
+        )
+      );
 
-        // Review dummy (jika belum ada endpoint API review)
-        const storedReviews = JSON.parse(localStorage.getItem("ministay_reviews") || "[]");
-        const roomReviews = storedReviews.filter((r: Review) => String(r.roomId) === String(roomId));
-        setReviews(roomReviews);
+      const storedReviews = JSON.parse(
+        localStorage.getItem("ministay_reviews") || "[]"
+      );
+      setReviews(
+        storedReviews.filter((r: Review) => String(r.roomId) === String(roomId))
+      );
     }
   }, [roomId]);
 
-  // RENDER LOADING STATE 
   if (isLoading) {
-      return (
-        <div className={`w-full max-w-lg mx-auto h-[500px] flex flex-col items-center justify-center bg-white ${isModal ? 'rounded-2xl' : ''}`}>
-            <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
-            <p className="text-gray-500 text-sm">Memuat detail kamar...</p>
-        </div>
-      );
+    return (
+      <div className={`w-full max-w-lg mx-auto h-[500px] flex flex-col items-center justify-center bg-white ${isModal ? "rounded-2xl" : ""}`}>
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+        <p className="text-gray-500 text-sm">Memuat detail kamar...</p>
+      </div>
+    );
   }
 
-  // RENDER ERROR STATE
-  if (error || !room) {
-      return (
-        <div className="p-10 text-center bg-white rounded-xl w-full max-w-lg mx-auto">
-            <p className="text-red-500 mb-4">{error || "Kamar tidak ditemukan"}</p>
-            <button onClick={() => isModal ? router.back() : window.location.href="/"} className="text-blue-600 underline text-sm">
-                Kembali
-            </button>
-        </div>
-      );
+  if (!room || error) {
+    return (
+      <div className="p-10 text-center bg-white rounded-xl w-full max-w-lg mx-auto">
+        <p className="text-red-500 mb-4">{error || "Kamar tidak ditemukan"}</p>
+        <button
+          onClick={() => (isModal ? router.back() : (window.location.href = "/"))}
+          className="text-blue-600 underline text-sm"
+        >
+          Kembali
+        </button>
+      </div>
+    );
   }
 
-  // Gabungkan rating API dengan rating local review (jika ada)
-  const displayRating = room.rating || (reviews.length > 0 
-    ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1) 
-    : "Baru");
+  const displayRating =
+    room.rating ||
+    (reviews.length > 0
+      ? (reviews.reduce((a, r) => a + r.rating, 0) / reviews.length).toFixed(1)
+      : "Baru");
 
   // LOGIC KALENDER (SAMA SEPERTI SEBELUMNYA)
   const isDateBooked = (date: Date) => {

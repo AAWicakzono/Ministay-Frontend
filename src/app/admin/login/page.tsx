@@ -8,7 +8,7 @@ export default function AdminLoginPage() {
         <p className="text-gray-400 text-sm">Sistem Manajemen Kost & Penginapan</p>
       </div>
       
-      <LoginForm isAdmin={true} />
+      <LoginForm/>
       
       <p className="mt-8 text-xs text-gray-400">
         &copy; {new Date().getFullYear()} Ministay Corp. Restricted Access.

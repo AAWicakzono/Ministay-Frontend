@@ -5,7 +5,7 @@ import { Plus, Search, Edit, Trash2, X, Save, Image as ImageIcon, MapPin, Upload
 import { Room } from "@/types";
 import { useNotification } from "@/context/NotificationContext"; 
 import Image from "next/image";
-import apiClient, { IMAGE_BASE_URL } from "@/lib/axios"; 
+import api from "@/lib/axios"; 
 
 export default function ManageRoomsPage() {
   const { showToast, showPopup } = useNotification();
@@ -19,7 +19,7 @@ export default function ManageRoomsPage() {
   const [isEditing, setIsEditing] = useState(false);
   
   const [formData, setFormData] = useState<Partial<Room>>({});
-  const [facilitiesInput, setFacilitiesInput] = useState(""); 
+  const [facilities, setFacilities] = useState<string[]>([]); 
   
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string>("");
@@ -27,7 +27,7 @@ export default function ManageRoomsPage() {
   // --- FETCH DATA ---
   const fetchRooms = useCallback(async () => {
     try {
-        const response = await apiClient.get('/api/rooms', {
+        const response = await api.get('/rooms', {
             params: { _t: new Date().getTime() } 
         });
 
@@ -36,15 +36,28 @@ export default function ManageRoomsPage() {
         const mappedRooms: Room[] = rawData.map((item: any) => ({
             id: item.id,
             name: item.name,
-            type: item.type || "Standard",
+            type: item.type || "Single",
             price: Number(item.price_per_day),
-            status: item.is_available === false ? 'occupied' : 'available',
-            // Gunakan IMAGE_BASE_URL yang diimport
-            image: item.cover_image ? `${IMAGE_BASE_URL}${item.cover_image}` : "",
-            facilities: Array.isArray(item.facilities) ? item.facilities : [],
+            status: item.is_available === false ? "occupied" : "available",
+            image: item.image || "",
+            facilities: (() => {
+                if (Array.isArray(item.facilities)) return item.facilities;
+                if (typeof item.facilities === "string") {
+                try {
+                    return JSON.parse(item.facilities);
+                } catch {
+                    return [];
+                }
+                }
+                return [];
+            })(),
             description: item.description || "",
-            location: item.location || ""
+            location: item.location || "",
         }));
+            console.log("RAW ITEM:", rawData[0]);
+            console.log("MAPPED ROOM:", mappedRooms[0]);
+
+
 
         setRooms(mappedRooms);
     } catch (error) {
@@ -81,7 +94,7 @@ export default function ManageRoomsPage() {
     setFormData({ 
         name: "", type: "Single", price: 0, location: "", description: "" 
     });
-    setFacilitiesInput(""); 
+    setFacilities([]); 
     setSelectedImage(null);
     setPreviewImage("");
     setIsModalOpen(true);
@@ -89,12 +102,15 @@ export default function ManageRoomsPage() {
 
   const handleEditClick = (room: Room) => {
     setIsEditing(true);
-    setFormData(room);
-    if (room.facilities && room.facilities.length > 0) {
-        setFacilitiesInput(room.facilities.join(", "));
-    } else {
-        setFacilitiesInput("");
-    }
+    setFormData({
+        id: room.id,
+        name: room.name,
+        type: room.type,
+        price: room.price,
+        location: room.location,
+        description: room.description,
+    });
+    setFacilities(room.facilities || []);
     setSelectedImage(null);
     setPreviewImage(room.image || ""); 
     setIsModalOpen(true);
@@ -112,13 +128,10 @@ export default function ManageRoomsPage() {
         payload.append('price_per_day', String(formData.price)); 
         payload.append('location', formData.location || "");
         payload.append('description', formData.description || "");
-        
-        if (facilitiesInput.trim()) {
-            const facilitiesArray = facilitiesInput.split(",").map(f => f.trim()).filter(f => f !== "");
-            facilitiesArray.forEach((fac, index) => {
-                payload.append(`facilities[${index}]`, fac);
-            });
-        }
+
+        facilities.forEach((fac, index) => {
+            payload.append(`facilities[${index}]`, fac);
+        });
 
         if (selectedImage) {
             payload.append('image', selectedImage);
@@ -126,10 +139,10 @@ export default function ManageRoomsPage() {
 
         if (isEditing && formData.id) {
             payload.append('_method', 'PUT'); 
-            await apiClient.post(`/api/admin/rooms/${formData.id}`, payload);
+            await api.post(`/admin/rooms/${formData.id}`, payload);
             showToast("Data kamar berhasil diperbarui", "success");
         } else {
-            await apiClient.post('/api/admin/rooms', payload);
+            await api.post('/admin/rooms', payload);
             showToast("Kamar baru berhasil ditambahkan", "success");
         }
 
@@ -155,7 +168,7 @@ export default function ManageRoomsPage() {
     showPopup("Hapus Kamar?", "Data kamar akan dihapus permanen.", "warning", async () => {
         setIsLoading(true);
         try {
-            await apiClient.delete(`/api/admin/rooms/${id}`);
+            await api.delete(`/admin/rooms/${id}`);
 
             showToast("Kamar berhasil dihapus", "success");
             
@@ -294,7 +307,18 @@ export default function ManageRoomsPage() {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Tipe</label>
-                            <input name="type" required value={formData.type || ""} onChange={handleChange} type="text" className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="single / double"/>
+                            <select 
+                                name="type" 
+                                required 
+                                value={formData.type || "single"} 
+                                onChange={handleChange} 
+                                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" 
+                            >
+                                <option value="single">Single</option>
+                                <option value="double">Double</option>
+                                <option value="family">Family</option>
+
+                            </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Harga (Rp)</label>
@@ -314,13 +338,38 @@ export default function ManageRoomsPage() {
                     {/* Fasilitas */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Fasilitas (Pisahkan dengan koma)</label>
-                        <input 
-                            value={facilitiesInput} 
-                            onChange={(e) => setFacilitiesInput(e.target.value)} 
-                            type="text" 
-                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" 
-                            placeholder="AC, WiFi, TV"
-                        />
+                        <select name="" id=""
+                        value=""
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if( val && !facilities.includes(val)) {
+                                setFacilities([...facilities, val]);
+                            }
+                        }}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white mb-2">
+                            <option value="" disabled>Pilih fasilitas</option>
+                            <option value="AC">AC</option>
+                            <option value="WiFi">WiFi</option>
+                            <option value="TV">TV</option>
+                            <option value="Kamar Mandi Dalam">Kamar Mandi Dalam</option>
+                            <option value="Water Heater">Water Heater</option>
+                        </select>
+                        <div className="flex flex-wrap gap-2">
+                            {facilities.map((f) => (
+                                <span
+                                key={f}
+                                className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2"
+                                >
+                                {f}
+                                <button
+                                    type="button"
+                                    onClick={() => setFacilities(facilities.filter(x => x !== f))}
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                                </span>
+                            ))}
+                            </div>
                     </div>
 
                     {/* Deskripsi */}
