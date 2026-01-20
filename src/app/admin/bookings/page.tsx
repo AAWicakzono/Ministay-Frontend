@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { CheckCircle, XCircle, Clock, Search, Trash2, ChevronDown } from "lucide-react"; // Tambah icon ChevronDown
-import { useNotification } from "@/context/NotificationContext"; 
+import { useState, useEffect, useCallback } from "react";
+import { Search } from "lucide-react";
+import { useNotification } from "@/context/NotificationContext";
+import api from "@/lib/axios";
 
 interface Booking {
   id: string;
@@ -11,186 +12,177 @@ interface Booking {
   checkIn: string;
   checkOut: string;
   totalPrice: number;
-  status: 'confirmed' | 'pending' | 'cancelled';
-  paymentDate: string;
+  status: 'pending_payment' | 'waiting_confirmation' | 'paid' | 'cancelled' | 'completed';
+  paymentId?: number;
+}
+interface BookingApiResponse {
+  id: number;
+  status: Booking['status'];
+  total_price: number;
+  check_in_date: string;
+  check_out_date: string;
+  user: {
+    name: string;
+  };
+  room: {
+    name: string;
+  };
+  payment: {
+    id: number;
+    status: 'pending' | 'confirmed' | 'rejected';
+  } | null;
 }
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const { showToast } = useNotification();
+
   
-  const { showPopup, showToast } = useNotification();
+
+  const fetchBookings = useCallback(async () => {
+    try {
+      const { data } = await api.get<BookingApiResponse[]>('/admin/bookings');
+
+      const mapped: Booking[] = data.map((b) => ({
+        id: b.id.toString(),
+        guestName: b.user.name,
+        roomName: b.room.name,
+        checkIn: new Date(b.check_in_date).toLocaleDateString("id-ID"),
+        checkOut: new Date(b.check_out_date).toLocaleDateString("id-ID"),
+        totalPrice: b.total_price,
+        status: b.status,
+        paymentId: b.payment?.id,
+      }));
+
+      setBookings(mapped);
+    } catch {
+      showToast("Gagal mengambil data booking", "error");
+    }
+  }, [showToast]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("ministay_bookings");
-      if (stored) {
-        setBookings(JSON.parse(stored));
-      }
-    }
-  }, []);
+    let active = true;
 
-  // --- FUNGSI BARU: Update Status Manual ---
-  const handleUpdateStatus = (id: string, newStatus: Booking['status']) => {
-    const updatedBookings = bookings.map((b) => 
-        b.id === id ? { ...b, status: newStatus } : b
-    );
-    
-    setBookings(updatedBookings);
-    localStorage.setItem("ministay_bookings", JSON.stringify(updatedBookings));
-    
-    // Trigger event agar komponen lain (jika ada) tahu data berubah
-    window.dispatchEvent(new Event("storage"));
-    
-    showToast(`Status booking berhasil diubah menjadi ${newStatus}`, "success");
+    fetchBookings().then(() => {
+      if(!active) return;
+    });
+    return () => {
+      active = false;
+    };
+  }, [fetchBookings]);
+
+  const confirmPayment = async (paymentId: number) => {
+    try {
+      await api.post(`/admin/payments/${paymentId}/confirm`);
+      showToast("Payment berhasil dikonfirmasi", "success");
+      fetchBookings();
+    } catch {
+      showToast("Gagal konfirmasi payment", "error");
+    }
   };
 
-  const handleDelete = (id: string) => {
-    showPopup(
-      "Hapus Riwayat?",
-      "Data booking ini akan dihapus permanen dari daftar.",
-      "warning",
-      () => {
-        const updated = bookings.filter(b => b.id !== id);
-        setBookings(updated);
-        localStorage.setItem("ministay_bookings", JSON.stringify(updated));
-        window.dispatchEvent(new Event("storage"));
-        
-        showToast("Riwayat booking berhasil dihapus", "success");
-      }
-    );
+  const rejectPayment = async (paymentId: number) => {
+    try {
+      await api.post(`/admin/payments/${paymentId}/reject`);
+      showToast("Payment ditolak", "success");
+      fetchBookings();
+    } catch {
+      showToast("Gagal menolak payment", "error");
+    }
   };
 
   const filteredBookings = bookings.filter((item) => {
     const matchesStatus = filter === "all" ? true : item.status === filter;
-    const matchesSearch = item.guestName.toLowerCase().includes(search.toLowerCase()) || 
-                          item.id.toLowerCase().includes(search.toLowerCase()) ||
-                          item.roomName.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      item.guestName.toLowerCase().includes(search.toLowerCase()) ||
+      item.id.includes(search) ||
+      item.roomName.toLowerCase().includes(search.toLowerCase());
+
     return matchesStatus && matchesSearch;
   });
 
-  // Helper untuk warna status
-  const getStatusColor = (status: string) => {
-    switch (status) {
-        case 'confirmed': return 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200';
-        case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-200';
-        case 'cancelled': return 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200';
-        default: return 'bg-gray-100 text-gray-700';
-    }
+  const getStatusBadge = (status: Booking['status']) => {
+    const map = {
+      pending_payment: "bg-yellow-100 text-yellow-700",
+      waiting_confirmation: "bg-blue-100 text-blue-700",
+      paid: "bg-green-100 text-green-700",
+      cancelled: "bg-red-100 text-red-700",
+      completed: "bg-gray-100 text-gray-700",
+    };
+    return `px-2 py-1 rounded-full border text-xs font-bold uppercase ${map[status]}`;
   };
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      {/* HEADER */}
+      <div className="flex justify-between mb-6">
         <div>
-            <h1 className="text-2xl font-bold text-gray-900">Booking Masuk</h1>
-            <p className="text-gray-500 text-sm">Kelola status dan data tamu</p>
+          <h1 className="text-2xl font-bold">Booking Masuk</h1>
+          <p className="text-sm text-gray-500">Verifikasi pembayaran transfer manual</p>
         </div>
-        
         <div className="relative">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-            <input 
-                type="text" 
-                placeholder="Cari ID / Nama Tamu..." 
-                className="pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 w-64"
-                onChange={(e) => setSearch(e.target.value)}
-            />
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+          <input
+            className="pl-9 pr-4 py-2 border rounded-xl text-sm"
+            placeholder="Cari booking..."
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
       </div>
 
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {['all', 'confirmed', 'pending', 'cancelled'].map((status) => (
-            <button 
-                key={status}
-                onClick={() => setFilter(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition ${
-                    filter === status 
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-200" 
-                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                }`}
-            >
-                {status === 'all' ? 'Semua' : status}
-            </button>
-        ))}
-      </div>
-
+      {/* TABLE */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-left">
-            <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold border-b border-gray-100">
-                <tr>
-                    <th className="p-4">Booking ID</th>
-                    <th className="p-4">Tamu & Kamar</th>
-                    <th className="p-4">Jadwal Menginap</th>
-                    <th className="p-4">Total Bayar</th>
-                    <th className="p-4">Status (Ubah)</th>
-                    <th className="p-4 text-center">Aksi</th>
-                </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
-                {filteredBookings.length > 0 ? (
-                    filteredBookings.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50 transition">
-                        <td className="p-4 text-gray-500 text-xs font-mono">{item.id}</td>
-                        <td className="p-4">
-                            <p className="font-bold text-gray-900">{item.guestName}</p>
-                            <p className="text-gray-500 text-xs">{item.roomName}</p>
-                        </td>
-                        <td className="p-4">
-                            <div className="flex flex-col text-xs text-gray-600">
-                                <span>IN: {item.checkIn}</span>
-                                <span>OUT: {item.checkOut}</span>
-                            </div>
-                        </td>
-                        <td className="p-4 font-bold text-gray-900">
-                            Rp {item.totalPrice.toLocaleString("id-ID")}
-                        </td>
-                        
-                        {/* --- MODIFIKASI: Kolom Status dengan Dropdown --- */}
-                        <td className="p-4">
-                            <div className="relative inline-block">
-                                <select
-                                    value={item.status}
-                                    onChange={(e) => handleUpdateStatus(item.id, e.target.value as Booking['status'])}
-                                    className={`appearance-none pl-8 pr-8 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 transition border ${getStatusColor(item.status)}`}
-                                >
-                                    <option value="confirmed">CONFIRMED</option>
-                                    <option value="pending">PENDING</option>
-                                    <option value="cancelled">CANCELLED</option>
-                                </select>
-                                
-                                {/* Icon Status Kiri */}
-                                <div className="absolute left-2.5 top-1.5 pointer-events-none">
-                                    {item.status === 'confirmed' ? <CheckCircle size={12}/> : 
-                                     item.status === 'pending' ? <Clock size={12}/> : <XCircle size={12}/>}
-                                </div>
-                                
-                                {/* Icon Panah Kanan */}
-                                <div className="absolute right-2.5 top-1.5 pointer-events-none opacity-50">
-                                    <ChevronDown size={12}/>
-                                </div>
-                            </div>
-                        </td>
-
-                        <td className="p-4 text-center">
-                            <button 
-                                onClick={() => handleDelete(item.id)}
-                                className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition" 
-                                title="Hapus Riwayat"
-                            >
-                                <Trash2 size={16}/>
-                            </button>
-                        </td>
-                    </tr>
-                    ))
-                ) : (
-                    <tr>
-                        <td colSpan={6} className="p-8 text-center text-gray-400">
-                            Tidak ada data booking yang cocok.
-                        </td>
-                    </tr>
-                )}
-            </tbody>
+          <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold border-b border-gray-100">
+            <tr>
+              <th className="p-4">Tamu</th>
+              <th className="p-4">Jadwal</th>
+              <th className="p-4">Total</th>
+              <th className="p-4">Status</th>
+              <th className="p-4 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredBookings.map(b => (
+              <tr key={b.id} className="border-t">
+                <td className="p-4">
+                  <p className="font-bold">{b.guestName}</p>
+                  <p className="text-xs text-gray-500">{b.roomName}</p>
+                </td>
+                <td className="p-4 text-xs">
+                  IN {b.checkIn}<br/>OUT {b.checkOut}
+                </td>
+                <td className="p-4 font-bold">
+                  Rp {b.totalPrice.toLocaleString("id-ID")}
+                </td>
+                <td className="p-4">
+                  <span className={getStatusBadge(b.status)}>
+                    {b.status.replace('_',' ')}
+                  </span>
+                </td>
+                <td className="p-4 text-center space-x-2">
+                  {b.status === 'waiting_confirmation' && b.paymentId && (
+                    <>
+                      <button
+                        onClick={() => confirmPayment(b.paymentId!)}
+                        className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-bold"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => rejectPayment(b.paymentId!)}
+                        className="px-3 py-1 bg-red-600 text-white rounded-lg text-xs font-bold"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </div>
