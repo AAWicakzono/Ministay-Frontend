@@ -6,7 +6,7 @@ import { rooms as initialRooms } from "@/lib/data";
 import RoomCard from "@/components/RoomCard";
 import { Room } from "@/types";
 import { Search, Calendar, User, Filter, ShieldCheck, Smile, Home, X, RotateCcw } from "lucide-react";
-import apiClient from "@/lib/axios";
+import api from "@/lib/axios";
 
 const parseDate = (dateStr: string) => {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -25,14 +25,14 @@ export default function HomePage() {
 const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await apiClient.get('/api/rooms');
+      const response = await api.get('/rooms');
       const backendData = response.data;
       
       const rawData = Array.isArray(backendData) ? backendData : backendData.data || [];
 
       const mappedRooms: Room[] = rawData.map((item: any) => {
         const imageUrl = item.cover_image 
-          ? `${apiClient.defaults.baseURL}/storage/${item.cover_image}`
+          ? `${api.defaults.baseURL}/storage/${item.cover_image}`
             : "https://placehold.co/600x400?text=No+Image";
 
       return {

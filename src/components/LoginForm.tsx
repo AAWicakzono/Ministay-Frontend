@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useNotification } from "@/context/NotificationContext";
 import { useAdminLogin } from "@/hooks/useAdminLogin";
+import { useUserAuth } from "@/hooks/useUserLogin";
 
 interface LoginFormProps {
   isModal?: boolean;
@@ -44,6 +45,7 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
   const router = useRouter();
   const { showToast, showPopup } = useNotification();
   const { login: adminLogin, loading } = useAdminLogin();
+  const { sendOtp, verifyOtp} = useUserAuth();
 
   const [role, setRole] = useState<"user" | "admin">("user");
   const [step, setStep] = useState<"phone" | "otp">("phone");
@@ -82,6 +84,7 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
           showToast("Mohon isi nama dan nomor HP", "error");
           return;
         }
+        await sendOtp(userName, phoneNumber);
         setStep("otp");
         return;
       }
@@ -91,16 +94,7 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
         return;
       }
 
-      localStorage.setItem(
-        "ministay_user",
-        JSON.stringify({
-          name: userName,
-          phone: phoneNumber,
-          role: "user",
-        })
-      );
-
-      window.dispatchEvent(new Event("user-update"));
+      await verifyOtp(phoneNumber, otpCode);
 
       showPopup(
         "Berhasil Login",

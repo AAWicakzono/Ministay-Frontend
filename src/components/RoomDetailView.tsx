@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import apiClient from "@/lib/axios";
+import api from "@/lib/axios";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -63,7 +63,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
     const fetchRoomDetail = async () => {
       setIsLoading(true);
       try {
-        const response = await apiClient.get(`/rooms/${roomId}`);
+        const response = await api.get(`/rooms/${roomId}`);
         const data = response.data;
 
         const coverImageObj =
