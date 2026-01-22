@@ -16,17 +16,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   
  
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   //  LOGIKA AUTH GUARD (PROTEKSI)
   useEffect(() => {
     const token = localStorage.getItem("ministay_admin_token");
     
-    if (!token) {
-      router.replace("/admin/login");
-    } else {
+    if(!token) {
+      if(!isLoggingOut) {
+        router.replace("/")
+      }
+      setIsAuthorized(false);
+    }else {
       setIsAuthorized(true);
     }
-  }, [router]);
+  }, [router, isLoggingOut]);
 
   const menus = [
     { name: "Overview", url: "/admin/dashboard", icon: LayoutDashboard },
@@ -43,13 +47,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       "Sesi Anda akan diakhiri dan kembali ke halaman utama.",
       "warning",
       () => {
+        setIsLoggingOut(true);
+        setIsAuthorized(false);
         localStorage.removeItem("ministay_user");
         localStorage.removeItem("ministay_admin_token");
-        
-        window.dispatchEvent(new Event("user-update"));
+        window.dispatchEvent(new Event("user-update")); 
+
         
         showToast("Berhasil Logout", "success");
-        router.push("/"); 
+        router.replace("/"); 
       }
     );
   };

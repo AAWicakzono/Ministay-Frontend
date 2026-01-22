@@ -21,19 +21,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const protectedPaths = ["/my-bookings", "/checkout"];
     const publicPaths = ["/", "/login", "/room", "/reviews", "/chat"];
 
-    if (pathname.startsWith("/admin")) {
-        if (!user || user.role !== "admin") {
-            // 3. GANTI ALERT
-            // Kita gunakan setTimeout 0 agar render layout selesai dulu sebelum panggil popup
-            setTimeout(() => {
-                showToast("Akses Ditolak: Khusus Admin!", "error");
-            }, 100);
-            
-            router.push("/login"); 
-            return;
-        }
-    }
-
     if (protectedPaths.some(path => pathname.startsWith(path))) {
         if (!user) {
             router.push("/login");

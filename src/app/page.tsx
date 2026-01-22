@@ -31,9 +31,10 @@ const loadData = useCallback(async () => {
       const rawData = Array.isArray(backendData) ? backendData : backendData.data || [];
 
       const mappedRooms: Room[] = rawData.map((item: any) => {
-        const imageUrl = item.cover_image 
-          ? `${api.defaults.baseURL}/storage/${item.cover_image}`
-            : "https://placehold.co/600x400?text=No+Image";
+        const imageUrl = item.cover_image ? item.cover_image.startsWith("http")
+          ? item.cover_image
+          : `${api.defaults.baseURL}/storage/${item.cover_image}`
+          : "https://placehold.co/600x400?text=No+Image";
 
       return {
           id: item.id,
@@ -42,10 +43,10 @@ const loadData = useCallback(async () => {
           price: parseInt(item.price_per_day), 
           status: "available", 
           image: imageUrl,
-          facilities: ["AC", "WiFi", "TV"], 
-          description: "Kamar nyaman dengan lokasi strategis.",
+          facilities: (item.facilities || []).map((f: string) => f.trim()), 
+          description: item.description || "Kamar nyaman dengan lokasi strategis.",
           rating: item.rating ? Number(item.rating) : 4.5,
-          location: item.location || "Lokasi Strategis" 
+          location: item.location || "Lokasi Strategis"
         };
       });
 

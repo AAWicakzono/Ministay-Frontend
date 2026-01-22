@@ -45,17 +45,20 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
   const router = useRouter();
   const { showToast, showPopup } = useNotification();
   const { login: adminLogin, loading } = useAdminLogin();
-  const { sendOtp, verifyOtp} = useUserAuth();
+  const { sendOtp, verifyOtp } = useUserAuth();
 
   const [role, setRole] = useState<"user" | "admin">("user");
   const [step, setStep] = useState<"phone" | "otp">("phone");
+
+  // 🔑 LOGIN vs REGISTER
+  const [userMode, setUserMode] = useState<"login" | "register">("login");
 
   // User
   const [userName, setUserName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otpCode, setOtpCode] = useState("");
 
-  // Admin
+  // Admin (DO NOT TOUCH)
   const [adminUser, setAdminUser] = useState("");
   const [adminPass, setAdminPass] = useState("");
 
@@ -74,17 +77,28 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
     else window.location.href = "/";
   };
 
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // ===== USER (OTP SIMULASI) =====
+    // ===== USER =====
     if (role === "user") {
       if (step === "phone") {
-        if (!userName || !phoneNumber) {
-          showToast("Mohon isi nama dan nomor HP", "error");
+        if (!phoneNumber) {
+          showToast("Masukkan nomor WhatsApp", "error");
           return;
         }
-        await sendOtp(userName, phoneNumber);
+
+        if (userMode === "register" && !userName) {
+          showToast("Masukkan nama lengkap", "error");
+          return;
+        }
+
+        await sendOtp(
+          userMode === "register" ? userName : "Guest",
+          phoneNumber
+        );
+
         setStep("otp");
         return;
       }
@@ -106,7 +120,7 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
       return;
     }
 
-    // ===== ADMIN =====
+    // ===== ADMIN (UNTOUCHED) =====
     if (!adminUser || !adminPass) {
       showToast("Isi username & password", "error");
       return;
@@ -179,92 +193,106 @@ export default function LoginForm({ isModal = false }: LoginFormProps) {
             ? "Login Admin"
             : step === "otp"
             ? "Verifikasi OTP"
-            : "Selamat Datang"}
+            : userMode === "register"
+            ? "Daftar Akun"
+            : "Masuk"}
         </h1>
-        <p className="text-blue-100 text-sm">
-          {role === "admin"
-            ? "Akses khusus pengelola"
-            : step === "otp"
-            ? "Masukkan kode yang kami kirim"
-            : "Masuk untuk melanjutkan"}
-        </p>
       </div>
 
       <div className="p-8 overflow-y-auto">
         <form onSubmit={handleLogin} className="space-y-5">
-          {role === "user" ? (
-            step === "phone" ? (
-              <>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">
-                    Nama Lengkap
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={userName}
-                      onChange={(e) => setUserName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">
-                    Nomor WhatsApp
-                  </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                      required
-                    />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="text-center">
+          {role === "user" && step === "phone" && userMode === "register" && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700">
+                Nama Lengkap
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                  className="w-full text-center text-3xl tracking-[0.5em] font-bold py-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                  maxLength={6}
-                  autoFocus
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
                   required
                 />
               </div>
-            )
-          ) : (
+            </div>
+          )}
+
+          {role === "user" && step === "phone" && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700">
+                Nomor WhatsApp
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                  required
+                />
+              </div>
+            </div>
+          )}
+
+          {role === "user" && step === "otp" && (
+            <input
+              type="text"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value)}
+              className="w-full text-center text-3xl tracking-[0.5em] font-bold py-4 bg-gray-50 border border-gray-200 rounded-xl"
+              maxLength={6}
+              autoFocus
+              required
+            />
+          )}
+
+          {role === "user" && step === "phone" && (
+            <p
+              className="text-xs text-blue-600 text-center cursor-pointer"
+              onClick={() =>
+                setUserMode(userMode === "login" ? "register" : "login")
+              }
+            >
+              {userMode === "login"
+                ? "Belum punya akun? Daftar"
+                : "Sudah punya akun? Masuk"}
+            </p>
+          )}
+          {role === "admin" && (
             <>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">
-                  Username / ID
+                  Username
                 </label>
-                <input
-                  value={adminUser}
-                  onChange={(e) => setAdminUser(e.target.value)}
-                  className="w-full pl-4 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
-                  required
-                />
+                <div className="relative">
+                  <User className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={adminUser}
+                    onChange={(e) => setAdminUser(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">
                   Password
                 </label>
-                <input
-                  type="password"
-                  value={adminPass}
-                  onChange={(e) => setAdminPass(e.target.value)}
-                  className="w-full pl-4 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
-                  required
-                />
+                <div className="relative">
+                  <LockKeyhole className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <input
+                    type="password"
+                    value={adminPass}
+                    onChange={(e) => setAdminPass(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl"
+                    required
+                  />
+                </div>
               </div>
             </>
           )}

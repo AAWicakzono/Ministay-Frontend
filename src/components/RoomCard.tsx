@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, JSX } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { MapPin, Star, Wifi, Tv, Wind, MessageCircle, AlertCircle, CheckCircle, XCircle } from "lucide-react";
+import { MapPin, Star, Wifi, Tv, Wind, MessageCircle, Droplet, ParkingCircle ,AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import { Room, Review } from "@/types";
 
 // Helper Parse Date
@@ -13,18 +13,37 @@ const parseDate = (dateStr: string) => {
   return new Date(y, m - 1, d);
 };
 
+
 export default function RoomCard({ data }: { data: Room }) {
-  const [displayRating, setDisplayRating] = useState(data.rating || 4.5);
+  const [displayRating, setDisplayRating] = useState(data.rating);
   const [reviewCount, setReviewCount] = useState(0);
+
+  const facilityMap: Record<string, { icon: JSX.Element; label: string }> = {
+    ac: { icon: <Wind className="w-3 h-3" />, label: "AC" },
+    wifi: { icon: <Wifi className="w-3 h-3" />, label: "WiFi" },
+    tv: { icon: <Tv className="w-3 h-3" />, label: "TV" },
+    "water heater": { icon: <Droplet className="w-3 h-3" />, label: "Water Heater" },
+    parking: { icon: <ParkingCircle className="w-3 h-3" />, label: "Parkir" },
+    sofa: { icon: <MessageCircle className="w-3 h-3" />, label: "Sofa" },
+    lemari: { icon: <CheckCircle className="w-3 h-3" />, label: "Lemari" },
+    "kamar mandi": { icon: <Droplet className="w-3 h-3" />, label: "Kamar Mandi" },
+    "air mineral": { icon: <Droplet className="w-3 h-3" />, label: "Air Mineral" },
+  };
+
+
+  const facilities = (data.facilities || []).map(f => 
+    f.toLowerCase().trim()
+  );
   
-  const [availabilityBadge, setAvailabilityBadge] = useState({
-    label: "Memuat...",
-    color: "bg-gray-400",
-    icon: <div className="w-2 h-2 bg-white rounded-full"/>
-  });
+  // const [availabilityBadge, setAvailabilityBadge] = useState({
+  //   label: "Memuat...",
+  //   color: "bg-gray-400",
+  //   icon: <div className="w-2 h-2 bg-white rounded-full"/>
+  // });
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+
       // 1. Load Reviews
       const storedReviews = localStorage.getItem("ministay_reviews");
       if (storedReviews) {
@@ -71,25 +90,25 @@ export default function RoomCard({ data }: { data: Room }) {
       }
 
       // --- ATURAN BARU (0, 1-4, >4) ---
-      if (unbookedCount === 0) {
-        setAvailabilityBadge({
-            label: "Penuh (Bulan Ini)",
-            color: "bg-red-600",
-            icon: <XCircle size={12} className="text-white"/>
-        });
-      } else if (unbookedCount <= 4) {
-        setAvailabilityBadge({
-            label: "Hampir Penuh",
-            color: "bg-orange-500",
-            icon: <AlertCircle size={12} className="text-white"/>
-        });
-      } else {
-        setAvailabilityBadge({
-            label: "Tersedia",
-            color: "bg-green-600",
-            icon: <CheckCircle size={12} className="text-white"/>
-        });
-      }
+      // if (unbookedCount === 0) {
+      //   setAvailabilityBadge({
+      //       label: "Penuh (Bulan Ini)",
+      //       color: "bg-red-600",
+      //       icon: <XCircle size={12} className="text-white"/>
+      //   });
+      // } else if (unbookedCount <= 4) {
+      //   setAvailabilityBadge({
+      //       label: "Hampir Penuh",
+      //       color: "bg-orange-500",
+      //       icon: <AlertCircle size={12} className="text-white"/>
+      //   });
+      // } else {
+      //   setAvailabilityBadge({
+      //       label: "Tersedia",
+      //       color: "bg-green-600",
+      //       icon: <CheckCircle size={12} className="text-white"/>
+      //   });
+      // }
     }
   }, [data.id]);
 
@@ -97,9 +116,9 @@ export default function RoomCard({ data }: { data: Room }) {
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col h-full group">
       <div className="relative h-48 w-full overflow-hidden">
         <Image src={data.image} alt={data.name} fill className="object-cover transition-transform duration-700 group-hover:scale-110" />
-        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm flex items-center gap-1.5 ${availabilityBadge.color} transition-colors duration-300`}>
+        {/* <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm flex items-center gap-1.5 ${availabilityBadge.color} transition-colors duration-300`}>
             {availabilityBadge.icon} {availabilityBadge.label}
-        </div>
+        </div> */}
         <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-2 py-1 rounded-lg flex items-center gap-1 text-xs font-bold shadow-sm border border-white/20">
             <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
             <span>{displayRating}</span>
@@ -114,11 +133,19 @@ export default function RoomCard({ data }: { data: Room }) {
             <MapPin className="w-3 h-3 mr-1 text-gray-400" />
             {data.location || 'Jakarta Selatan'} • <span className="text-gray-400 ml-1">{data.type}</span>
         </div>
-        <div className="flex gap-3 mb-4 text-gray-400">
-            <div className="flex items-center gap-1 text-[10px] bg-gray-50 px-2 py-1 rounded"><Wind className="w-3 h-3"/> AC</div>
-            <div className="flex items-center gap-1 text-[10px] bg-gray-50 px-2 py-1 rounded"><Wifi className="w-3 h-3"/> WiFi</div>
-            <div className="flex items-center gap-1 text-[10px] bg-gray-50 px-2 py-1 rounded"><Tv className="w-3 h-3"/> TV</div>
+        <div className="flex gap-3 mb-4 text-gray-400 flex-wrap">
+          {facilities.map((f, i) => (
+            <div
+              key={`${data.id}-${f}-${i}`}
+              className="flex items-center gap-1 text-[10px] bg-gray-50 px-2 py-1 rounded"
+            >
+              {facilityMap[f]?.icon || <CheckCircle className="w-3 h-3" />}
+              {facilityMap[f]?.label || f}
+              
+            </div>
+          ))}
         </div>
+
         <div className="border-t border-dashed border-gray-100 mb-3 mt-auto"></div>
         <div className="flex items-center justify-between gap-2">
             <div>

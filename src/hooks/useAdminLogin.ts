@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import apiClient from "@/lib/axios";
+import api from "@/lib/axios";
 import { isAxiosError } from "axios";
 
 type AdminLoginPayload = {
@@ -28,7 +28,7 @@ export const useAdminLogin = () => {
     setLoading(true);
 
     try {
-      const res = await apiClient.post<AdminLoginResponse>(
+      const res = await api.post<AdminLoginResponse>(
         "/auth/admin/login",
         payload
       );

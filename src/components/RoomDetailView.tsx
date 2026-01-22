@@ -56,6 +56,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeImage, setActiveImage] = useState<string>("");
+  const [images, setImages] = useState<string[]>([]);
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -66,13 +67,15 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
         const response = await api.get(`/rooms/${roomId}`);
         const data = response.data;
 
-        const coverImageObj =
-          data.images?.find((img: any) => img.is_cover) || data.images?.[0];
+        const imagePaths = 
+          Array.isArray(data.images) && data.images.length > 0
+          ? data.images.map((img: any) => img.path) : [];
+        setImages(imagePaths);
+        const coverImage = 
+          data.images?.find((img: any) => img.is_cover)?.path||
+          imagePaths[0] || "https://placehold.co/600x400?text=No+Image"
 
-        const coverPath = coverImageObj?.path ?? null;
-
-        const fullImageUrl =
-          coverPath || "https://placehold.co/600x400?text=No+Image";
+        setActiveImage(coverImage);
 
         const mappedRoom: Room = {
           id: data.id,
@@ -80,7 +83,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
           type: data.type || "Standard",
           price: Number(data.price_per_day),
           status: "available",
-          image: fullImageUrl,
+          image: coverImage,
           description: data.description,
           facilities: Array.isArray(data.facilities) ? data.facilities : [],
           rating: data.rating ? Number(data.rating) : 0,
@@ -88,7 +91,6 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
         };
 
         setRoom(mappedRoom);
-        setActiveImage(fullImageUrl);
       } catch (err) {
         console.error(err);
         setError("Terjadi kesalahan saat memuat data.");
@@ -259,6 +261,25 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
             className="object-cover transition duration-500" 
             sizes="(max-width: 768px) 100vw, 500px"
         />
+        {images.length > 1 && (
+          <div className="absolute bottom-3 right-3 flex gap-2 z-10">
+            {images.map((img, idx) => (
+              <button 
+                key={idx}
+                onClick={() => setActiveImage(img)}
+                className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition ${activeImage === img ? "border-white" : "border-white/50 hover:border-white"}`}>
+                  <Image
+                    src={img}
+                    alt = {`Thumbnail ${idx + 1}`}
+                    width={48}
+                    height={48}
+                    className="object-cover w-full h-full"
+                  />
+
+              </button>
+            ))}
+          </div>
+        )}
         <button onClick={() => isModal ? router.back() : window.location.href="/"} className="absolute top-4 left-4 bg-black/20 hover:bg-black/40 text-white p-2 rounded-full backdrop-blur-sm transition z-10">
           {isModal ? <X className="w-5 h-5"/> : "⬅ Kembali"}
         </button>
