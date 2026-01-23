@@ -108,7 +108,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
       try {
         const res = await api.get("/bookings");
         const bookings = res.data
-          .filter((b:any) => b.room.id === roomId && b.payment?.status === "paid")
+          .filter((b:any) => b.room.id === roomId && b.payment_method?.status === "paid")
           .map((b: any) => ({
             checkIn: b.check_in_date,
             checkOut: b.check_out_date,
@@ -400,7 +400,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
                 <MessageCircle className="w-4 h-4" /> Chat
             </Link>
             <button onClick={handleMainAction} className={`flex-2 text-white py-3 rounded-xl font-bold text-sm flex flex-col items-center justify-center leading-tight ${!isLoggedIn ? 'bg-blue-600 hover:bg-blue-700' : (days > 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed')}`} disabled={isLoggedIn && days <= 0}>
-                {!isLoggedIn ? (<span className="flex items-center gap-2"><LogIn className="w-4 h-4"/> Masuk untuk Pesan</span>) : (<><span>{days > 0 ? `Pesan (${days} Malam)` : "Pilih Tanggal"}</span>{days > 0 && <span className="text-[10px] font-normal opacity-80">Total: Rp {(room.price * days).toLocaleString('id-ID')}</span>}</>)}
+                {!isLoggedIn ? (<span className="flex items-center gap-2"><LogIn className="w-4 h-4"/>Pesan</span>) : (<><span>{days > 0 ? `Pesan (${days} Malam)` : "Pilih Tanggal"}</span>{days > 0 && <span className="text-[10px] font-normal opacity-80">Total: Rp {(room.price * days).toLocaleString('id-ID')}</span>}</>)}
             </button>
       </div>
     </div>

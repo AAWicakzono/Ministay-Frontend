@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, Edit, Trash2, X, Save, Image as ImageIcon, MapPin, UploadCloud, Loader2 } from "lucide-react";
+import { Plus, Search, Edit, Trash2, X, Save, Image as ImageIcon, MapPin,  Loader2, EyeIcon, XIcon } from "lucide-react";
 import { Room } from "@/types";
 import { useNotification } from "@/context/NotificationContext"; 
 import Image from "next/image";
@@ -22,7 +22,12 @@ export default function ManageRoomsPage() {
   const [facilities, setFacilities] = useState<string[]>([]); 
   
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [previewImage, setPreviewImage] = useState<string>("");
+
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [roomImages, setRoomImages] = useState<{id:number, path:string, is_cover:boolean}[]>([]);
+  const [currentRoomId, setCurrentRoomId] = useState<number | null>(null);
+  const [newImageFile, setNewImageFile] = useState<File | null>(null);
+
 
   // --- FETCH DATA ---
   const fetchRooms = useCallback(async () => {
@@ -77,17 +82,73 @@ export default function ManageRoomsPage() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: name === "price" ? Number(value) : value }));
   };
+  const handleImageManager = async (roomId: number) => {
+    setCurrentRoomId(roomId);
+    setIsImageModalOpen(true);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        if (file.size > 2 * 1024 * 1024) {
-            return showToast("Ukuran gambar maksimal 2MB", "error");
-        }
-        setSelectedImage(file);
-        setPreviewImage(URL.createObjectURL(file)); 
+    try {
+        const res = await api.get(`/admin/rooms/${roomId}/images`);
+        setRoomImages(res.data);
+    } catch (err) {
+        console.error(err);
+        showToast("Gagal load gambar", "error");
     }
   };
+  const handleImageChangeModal = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        if(file.size > 2*1024*1024) return showToast("Ukuran maksimal 2MB", "error");
+        setNewImageFile(file);
+    }
+    };
+
+    const uploadImage = async () => {
+        if(!newImageFile || !currentRoomId) return;
+        const form = new FormData();
+        form.append("image", newImageFile);
+        try {
+            await api.post(`/admin/rooms/${currentRoomId}/images`, form);
+            showToast("Gambar berhasil di-upload", "success");
+            setNewImageFile(null);
+            const res = await api.get(`/admin/rooms/${currentRoomId}/images`);
+            setRoomImages(res.data);
+        } catch(err) {
+            console.error(err);
+            showToast("Upload gagal", "error");
+        }
+    };
+
+    const setCover = async (id:number) => {
+        try {
+            await api.post(`/admin/room/${id}/cover`);
+            showToast("Cover berhasil diubah", "success");
+            if(currentRoomId){
+                const res = await api.get(`/admin/rooms/${currentRoomId}/images`);
+                setRoomImages(res.data);
+            }
+        } catch(err){
+            console.error(err);
+            showToast("Gagal mengubah cover", "error");
+        }
+    };
+
+    const deleteImage = async (id:number) => {
+        showPopup("Hapus Gambar?", "Gambar akan dihapus permanen.", "warning", async () => {
+            try {
+                await api.delete(`/admin/rooms/${id}/images`);
+                showToast("Gambar berhasil dihapus", "success");
+                if(currentRoomId){
+                    const res = await api.get(`/admin/rooms/${currentRoomId}/images`);
+                    setRoomImages(res.data);
+                }
+            } catch(err){
+                console.error(err);
+                showToast("Gagal hapus gambar", "error");
+            }
+        });
+    };
+
+
 
   const handleAddClick = () => {
     setIsEditing(false);
@@ -95,8 +156,6 @@ export default function ManageRoomsPage() {
         name: "", type: "Single", price: 0, location: "", description: "" 
     });
     setFacilities([]); 
-    setSelectedImage(null);
-    setPreviewImage("");
     setIsModalOpen(true);
   };
 
@@ -111,8 +170,6 @@ export default function ManageRoomsPage() {
         description: room.description,
     });
     setFacilities(room.facilities || []);
-    setSelectedImage(null);
-    setPreviewImage(room.image || ""); 
     setIsModalOpen(true);
   };
 
@@ -214,7 +271,6 @@ export default function ManageRoomsPage() {
                     <th className="p-4">Kamar</th>
                     <th className="p-4">Tipe & Lokasi</th>
                     <th className="p-4">Harga / Malam</th>
-                    <th className="p-4">Status</th>
                     <th className="p-4 text-right">Aksi</th>
                 </tr>
             </thead>
@@ -226,13 +282,6 @@ export default function ManageRoomsPage() {
                         <tr key={room.id} className="hover:bg-gray-50 transition">
                             <td className="p-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-lg bg-gray-100 relative overflow-hidden shrink-0 border border-gray-200">
-                                        {room.image ? (
-                                            <Image src={room.image} alt={room.name} fill className="object-cover"/>
-                                        ) : (
-                                            <ImageIcon className="w-6 h-6 text-gray-300 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"/>
-                                        )}
-                                    </div>
                                     <span className="font-bold text-gray-900">{room.name}</span>
                                 </div>
                             </td>
@@ -243,15 +292,15 @@ export default function ManageRoomsPage() {
                                 </div>
                             </td>
                             <td className="p-4">Rp {room.price.toLocaleString("id-ID")}</td>
-                            <td className="p-4">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold capitalize ${
-                                    room.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                }`}>
-                                    {room.status === 'available' ? 'Tersedia' : 'Penuh'}
-                                </span>
-                            </td>
                             <td className="p-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
+                                    <button
+                                        onClick={() => handleImageManager(room.id)}
+                                        className="p-2 hover:bg-green-100 rounded-lg text-green-600 transition"
+                                        title="Kelola Gambar"
+                                        >
+                                        <ImageIcon className="w-4 h-4"/>
+                                    </button>
                                     <button onClick={() => handleEditClick(room)} className="p-2 hover:bg-blue-100 rounded-lg text-blue-600 transition" title="Edit"><Edit className="w-4 h-4"/></button>
                                     <button onClick={() => handleDeleteClick(room.id)} className="p-2 hover:bg-red-100 rounded-lg text-red-500 transition" title="Hapus"><Trash2 className="w-4 h-4"/></button>
                                 </div>
@@ -274,28 +323,6 @@ export default function ManageRoomsPage() {
                     <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-900"><X className="w-6 h-6"/></button>
                 </div>
                 <form onSubmit={handleSave} className="p-6 space-y-4">
-                    
-                    {/* INPUT GAMBAR */}
-                    <div className="w-full">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Foto Kamar</label>
-                        <div className="flex items-start gap-4">
-                            <div className="w-24 h-24 rounded-xl bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden shrink-0">
-                                {previewImage ? (
-                                    <Image src={previewImage} alt="Preview" fill className="object-cover"/>
-                                ) : (
-                                    <ImageIcon className="text-gray-400"/>
-                                )}
-                            </div>
-                            <div className="flex-1">
-                                <label className="cursor-pointer bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-600 px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 w-fit mb-2">
-                                    <UploadCloud className="w-4 h-4"/> Pilih File
-                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageChange}/>
-                                </label>
-                                <p className="text-xs text-gray-400">Format: JPG, PNG. Maksimal 2MB.</p>
-                                {selectedImage && <p className="text-xs text-green-600 mt-1 font-medium">Terpilih: {selectedImage.name}</p>}
-                            </div>
-                        </div>
-                    </div>
 
                     {/* Nama Kamar */}
                     <div>
@@ -396,6 +423,42 @@ export default function ManageRoomsPage() {
             </div>
         </div>
       )}
+      {isImageModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                <h2 className="text-xl font-bold">Kelola Gambar Kamar</h2>
+                <button onClick={() => setIsImageModalOpen(false)} className="text-gray-400 hover:text-gray-900"><X className="w-6 h-6"/></button>
+            </div>
+
+            <div className="p-6 space-y-4">
+                {/* Upload Baru */}
+                <div className="flex gap-2 items-center">
+                <input type="file" accept="image/*" onChange={handleImageChangeModal}/>
+                <button onClick={uploadImage} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700">Upload</button>
+                </div>
+
+                {/* List Gambar */}
+                <div className="grid grid-cols-3 gap-4">
+                {roomImages.map(img => (
+                    <div key={img.id} className="relative group">
+                    <Image src={img.path} alt="room" width={100} height={100} className="object-cover rounded-lg"/>
+                    <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                        {!img.is_cover && (
+                        <button onClick={()=>setCover(img.id)} className="bg-green-500 text-white p-1 rounded" title="Set Cover"><EyeIcon className="w-4 h-4"/></button>
+                        )}
+                        <button onClick={()=>deleteImage(img.id)} className="bg-red-500 text-white p-1 rounded" title="Hapus"><XIcon/></button>
+                    </div>
+                    {img.is_cover && <span className="absolute bottom-1 left-1 bg-yellow-400 text-white px-1 text-[10px] rounded">Cover</span>}
+                    </div>
+                ))}
+                </div>
+            </div>
+            </div>
+        </div>
+        )}
+
     </div>
   );
+  
 }

@@ -12,8 +12,7 @@ interface Booking {
   checkIn: string;
   checkOut: string;
   totalPrice: number;
-  status: 'pending_payment' | 'waiting_confirmation' | 'paid' | 'cancelled' | 'completed';
-  paymentId?: number;
+  status: 'pending_payment' | 'paid' | 'cancelled' | 'completed';
 }
 interface BookingApiResponse {
   id: number;
@@ -27,11 +26,8 @@ interface BookingApiResponse {
   room: {
     name: string;
   };
-  payment: {
-    id: number;
-    status: 'pending' | 'confirmed' | 'rejected';
-  } | null;
 }
+
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -40,6 +36,7 @@ export default function BookingsPage() {
   const { showToast } = useNotification();
 
   
+  
 
   const fetchBookings = useCallback(async () => {
     try {
@@ -47,13 +44,12 @@ export default function BookingsPage() {
 
       const mapped: Booking[] = data.map((b) => ({
         id: b.id.toString(),
-        guestName: b.user.name,
-        roomName: b.room.name,
+        guestName: b.user?.name ?? "-",
+        roomName: b.room?.name ?? "-",
         checkIn: new Date(b.check_in_date).toLocaleDateString("id-ID"),
         checkOut: new Date(b.check_out_date).toLocaleDateString("id-ID"),
         totalPrice: b.total_price,
         status: b.status,
-        paymentId: b.payment?.id,
       }));
 
       setBookings(mapped);
@@ -62,36 +58,31 @@ export default function BookingsPage() {
     }
   }, [showToast]);
 
-  useEffect(() => {
-    let active = true;
+  const markPaid = async (id: string) => {
+    try {
+      await api.post(`/admin/bookings/${id}/paid`);
+      showToast("Booking di terima", 'success');
+      fetchBookings();
+    } catch {
+      showToast("Gagal menerima booking", "error");
+    }
+  };
+  const cancelBooking = async (id: string) => {
+    try {
+      await api.put(`/admin/bookings/${id}/cancel`);
+      showToast("Booking dibatalkan", "success");
+      fetchBookings();
+    } catch {
+      showToast("Gagal membatalkan booking", "error");
+    }
+  };
 
-    fetchBookings().then(() => {
-      if(!active) return;
-    });
-    return () => {
-      active = false;
-    };
+
+  useEffect(() => {
+    fetchBookings()
   }, [fetchBookings]);
 
-  const confirmPayment = async (paymentId: number) => {
-    try {
-      await api.post(`/admin/payments/${paymentId}/confirm`);
-      showToast("Payment berhasil dikonfirmasi", "success");
-      fetchBookings();
-    } catch {
-      showToast("Gagal konfirmasi payment", "error");
-    }
-  };
 
-  const rejectPayment = async (paymentId: number) => {
-    try {
-      await api.post(`/admin/payments/${paymentId}/reject`);
-      showToast("Payment ditolak", "success");
-      fetchBookings();
-    } catch {
-      showToast("Gagal menolak payment", "error");
-    }
-  };
 
   const filteredBookings = bookings.filter((item) => {
     const matchesStatus = filter === "all" ? true : item.status === filter;
@@ -106,7 +97,6 @@ export default function BookingsPage() {
   const getStatusBadge = (status: Booking['status']) => {
     const map = {
       pending_payment: "bg-yellow-100 text-yellow-700",
-      waiting_confirmation: "bg-blue-100 text-blue-700",
       paid: "bg-green-100 text-green-700",
       cancelled: "bg-red-100 text-red-700",
       completed: "bg-gray-100 text-gray-700",
@@ -163,22 +153,23 @@ export default function BookingsPage() {
                   </span>
                 </td>
                 <td className="p-4 text-center space-x-2">
-                  {b.status === 'waiting_confirmation' && b.paymentId && (
+                  {b.status === "pending_payment" && (
                     <>
                       <button
-                        onClick={() => confirmPayment(b.paymentId!)}
+                        onClick={() => markPaid(b.id)}
                         className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-bold"
                       >
-                        Confirm
+                        Accept
                       </button>
                       <button
-                        onClick={() => rejectPayment(b.paymentId!)}
+                        onClick={() => cancelBooking(b.id)}
                         className="px-3 py-1 bg-red-600 text-white rounded-lg text-xs font-bold"
                       >
-                        Reject
+                        Cancel
                       </button>
                     </>
                   )}
+
                 </td>
               </tr>
             ))}

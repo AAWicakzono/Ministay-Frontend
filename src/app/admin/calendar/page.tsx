@@ -11,7 +11,7 @@ type Block = { id: number,date: string; status: string; reason?: string };
 type Booking = { id: number; room_id: number; check_in_date: string; check_out_date: string; status: string };
 
 export default function AdminCalendarPage() {
-    const [newBlockReason, setNewBlockReason] = useState(""); // alasan block baru
+    const [newBlockReason, setNewBlockReason] = useState(""); 
     const [blockStartDate, setBlockStartDate] = useState<Date | null>(null);
     const [blockEndDate, setBlockEndDate] = useState<Date | null>(null);
 
@@ -34,33 +34,36 @@ export default function AdminCalendarPage() {
       r.type.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // Ambil blocks admin + bookings aktif
-    useEffect(() => {
-        if (!selectedRoomId) return;
-
-        // 1. Ambil RoomBlock
-        api.get(`/admin/room-date/${selectedRoomId}`)
-            .then(res => setBlocks(res.data))
-            .catch(err => console.error(err));
-
-        api.get(`/admin/bookings`) 
-            .then(res => {
-            const active = res.data.filter(
-                (b: Booking) =>
-                b.room_id === selectedRoomId &&
-                ['pending_payment', 'waiting_confirmation', 'paid'].includes(b.status)
-            );
-            setBookings(active);
-            })
-            .catch(err => console.error(err));
-        }, [selectedRoomId]);
-
-
     const selectedRoom = rooms.find(r => r.id === selectedRoomId);
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+    const getStatusForDate = (day: number) => {
+        const targetDate = startOfDay(new Date(year, month, day));
+        const dateStr = format(targetDate, 'yyyy-MM-dd');
+        const isBetweenInclusive = (date: Date, start: Date, end: Date) => !isBefore(date, start) && !isBefore(end, date);
+
+
+        // 1. Cek booking dulu
+        const activeStatuses = ['pending_payment', 'paid'];
+        const booking = bookings.find(b => {
+            const start = startOfDay(parseISO(b.check_in_date));
+            const end = startOfDay(parseISO(b.check_out_date));
+            return isBetweenInclusive(targetDate, start, end) && activeStatuses.includes(b.status);
+        });
+        if (booking) return { status: 'occupied' };
+
+        // 2. Cek admin block
+        const block = blocks.find(b => b.date === dateStr);
+        if (block) return { status: 'blocked', reason: block.reason, id: block.id };
+
+        // 3. Cek expired
+        if (isBefore(targetDate, startOfDay(new Date()))) return { status: 'expired' };
+
+        return null; // tersedia
+    };
 
     const handleAddBlock = async () => {
         if (!selectedRoomId || !blockStartDate || !blockEndDate) return;
@@ -70,13 +73,10 @@ export default function AdminCalendarPage() {
                 room_id: selectedRoomId,
                 start_date: blockStartDate.toISOString().split('T')[0],
                 end_date: blockEndDate.toISOString().split('T')[0],
-                reason: newBlockReason || "Admin block",
+                reason: newBlockReason || 'Admin block',
             });
 
-            // update blocks di state
             const createdBlock = res.data;
-
-            // kita perlu expand range tanggal block agar kalender menampilkan semua tanggal yang diblock
             const start = new Date(createdBlock.start_date);
             const end = new Date(createdBlock.end_date);
             const newBlocks: Block[] = [];
@@ -88,62 +88,60 @@ export default function AdminCalendarPage() {
                     status: 'blocked',
                 });
             }
+            setBlocks(prev => {
+                const existingDates = new Set(prev.map(b => b.date + b.id));
+                const filtered = newBlocks.filter(nb => !existingDates.has(nb.date + nb.id));
+                return [...prev, ...filtered];
+            });
 
-            setBlocks(prev => [...prev, ...newBlocks]);
-
-            // reset input
             setBlockStartDate(null);
             setBlockEndDate(null);
-            setNewBlockReason("");
+            setNewBlockReason('');
         } catch (err) {
             console.error(err);
             alert('Gagal menambahkan block');
         }
     };
+
     const handleDeleteBlock = async (blockId: number) => {
-    try {
-        await api.delete(`/admin/room-date/${blockId}`); 
-        setBlocks(prev => prev.filter(b => b.id !== blockId));
-        console.log(`Block ${blockId} deleted`);
-    } catch (err) {
-        console.error(err);
-        alert('Gagal menghapus block');
-    }
-};
-
-
-
-    const getStatusForDate = (day: number) => {
-        const targetDate = startOfDay(new Date(year, month, day)); // startOfDay local time
-        const dateStr = format(targetDate, 'yyyy-MM-dd'); // format aman YYYY-MM-DD tanpa timezone
-
-        const today = startOfDay(new Date());
-
-        // 1. Cek expired
-        if (isBefore(targetDate, today)) return { status: 'expired' };
-
-        // 2. Cek booking aktif
-        const activeStatuses = ['pending_payment', 'waiting_confirmation', 'paid'];
-        for (const b of bookings) {
-            const start = startOfDay(parseISO(b.check_in_date));
-            const end = startOfDay(parseISO(b.check_out_date));
-
-            if (!isBefore(targetDate, start) && isBefore(targetDate, end)) {
-                if (activeStatuses.includes(b.status)) {
-                    return { status: 'occupied', reason: 'booking' };
-                }
-            }
+        try {
+            await api.delete(`/admin/room-blocks/${blockId}`);
+            // Hapus semua tanggal block dengan id tersebut
+            setBlocks(prev => prev.filter(b => b.id !== blockId));
+        } catch (err) {
+            console.error(err);
+            alert('Gagal menghapus block');
         }
-
-        // 3. Cek block admin
-        const block = blocks.find(b => b.date === dateStr);
-        if (block) return { status: 'blocked', reason: block.reason, id: block.id };
-        console.log("Blocks state:", blocks);
-
-
-        // 4. Tersedia
-        return null;
     };
+
+    // Ambil bookings + blocks ketika room dipilih
+    useEffect(() => {
+        if (!selectedRoomId) return;
+
+        const fetchData = async () => {
+            try {
+                const [blocksRes, bookingsRes] = await Promise.all([
+                    api.get(`/admin/room-date/${selectedRoomId}`),
+                    api.get(`/admin/bookings`),
+                ]);
+
+                // blocks per tanggal
+                setBlocks(blocksRes.data);
+
+                const activeBookings = bookingsRes.data.filter(
+                    (b: Booking) =>
+                        b.room_id === selectedRoomId &&
+                        ['pending_payment', 'paid'].includes(b.status)
+                );
+                setBookings(activeBookings);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+
+        fetchData();
+    }, [selectedRoomId]);
+
 
     
 

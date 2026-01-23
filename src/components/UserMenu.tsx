@@ -5,6 +5,7 @@ import Link from "next/link";
 import { User, LogOut, Phone, LogIn, LayoutDashboard, ChevronDown, Settings } from "lucide-react";
 import { useNotification } from "@/context/NotificationContext";
 import { useRouter } from "next/navigation";
+import api from "@/lib/axios";
 
 export default function UserMenu() {
   const [user, setUser] = useState<{ name: string; phone?: string; role?: string } | null>(null);
@@ -50,6 +51,7 @@ export default function UserMenu() {
         () => {
         localStorage.removeItem("ministay_user");
         setUser(null);
+        api.defaults.headers.Authorization = "";
         window.dispatchEvent(new Event("user-update")); 
         showToast("Berhasil Logout. Sampai jumpa!", "success");
         router.push("/");

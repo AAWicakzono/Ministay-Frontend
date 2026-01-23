@@ -8,12 +8,14 @@ import { Review } from "@/types";
 import { useNotification } from "@/context/NotificationContext";
 import { format, parseISO } from "date-fns";
 import api from "@/lib/axios";
+import { useUserAuth } from "@/hooks/useUserLogin";
 
 interface Booking {
   id: string;
   roomId: number;
   roomName: string;
   guestName: string;
+  bookingCode: string;
   checkIn: string;
   checkOut: string;
   totalPrice: number;
@@ -29,6 +31,7 @@ export default function MyBookingsPage() {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
 
+
   const { showToast, showPopup } = useNotification(); // 2. Panggil Hook
 
   useEffect(() => {
@@ -40,6 +43,7 @@ export default function MyBookingsPage() {
                 id : b.id,
                 roomId: b.room.id,
                 roomName: b.room.name,
+                bookingCode: b.booking_code,
                 guestName: b.user?.name || "Anda",
                 checkIn: b.check_in_date,
                 checkOut: b.check_out_date,
@@ -122,7 +126,7 @@ export default function MyBookingsPage() {
                                 {item.status}
                             </span>
                             <h3 className="font-bold text-lg text-gray-900 mt-2 leading-tight">{item.roomName}</h3>
-                            <p className="text-xs text-gray-400 mt-1 font-mono">ID: {item.id}</p>
+                            <p className="text-xs text-gray-400 mt-1 font-mono">ID: {item.bookingCode}</p>
                         </div>
                         <button 
                             onClick={() => setShowTicket(item)}

@@ -20,15 +20,6 @@ interface TopRoom {
   room: { name: string };
 }
 
-interface Payment {
-  id: number;
-  booking_id: number;
-  amount: number;
-  method: string;
-  status: "pending" | "confirmed" | "rejected";
-  confirmed_at: string | null;
-  created_at: string;
-}
 
 type Period = "weekly-chart" | "monthly-chart" | "yearly-chart";
 
@@ -36,12 +27,12 @@ export default function ReportPage() {
   const [period, setPeriod] = useState<Period>("weekly-chart");
   const [chartData, setChartData] = useState<ChartItem[]>([]);
   const [topRooms, setTopRooms] = useState<TopRoom[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
   const [showPeriodPicker, setShowPeriodPicker] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState("2026-W03");
   const [selectedMonth, setSelectedMonth] = useState("2026-01");
   const [selectedYear, setSelectedYear] = useState("2026");
+  const [draftPeriod, setDraftPeriod] = useState<Period>(period);
   const pickerRef = useRef<HTMLDivElement>(null);
 
   const fetchChart = useCallback(async () => {
@@ -80,15 +71,15 @@ export default function ReportPage() {
     setTopRooms(res.data);
   }, []);
 
-  const fetchPayments = useCallback(async () => {
-    const res = await api.get("/admin/payments");
-    setPayments(res.data);
-  }, []);
 
   useEffect(() => { fetchChart(); }, [fetchChart]);
-  useEffect(() => { fetchTopRooms(); fetchPayments(); }, [fetchTopRooms, fetchPayments]);
+  useEffect(() => { fetchTopRooms(); }, [fetchTopRooms]);
 
-  const handleApplyFilter = () => { setPeriod(period); setShowPeriodPicker(false); };
+
+  const handleApplyFilter = () => {
+    setPeriod(draftPeriod);
+    setShowPeriodPicker(false);
+  };
 
   const totalRevenue = chartData.reduce((sum, item) => sum + item.income, 0);
 
@@ -117,21 +108,21 @@ export default function ReportPage() {
                 {(['weekly-chart', 'monthly-chart', 'yearly-chart'] as Period[]).map(tab => (
                   <button
                     key={tab}
-                    onClick={() => setPeriod(tab)}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg ${period === tab ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                    onClick={() => setDraftPeriod(tab)}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg ${draftPeriod === tab ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
                   >
                     {tab === 'weekly-chart' ? 'Mingguan' : tab === 'monthly-chart' ? 'Bulanan' : 'Tahunan'}
                   </button>
                 ))}
               </div>
 
-              {period === 'weekly-chart' && (
+              {draftPeriod === 'weekly-chart' && (
                 <input type="week" value={selectedWeek} onChange={e => setSelectedWeek(e.target.value)} className="w-full border p-2 rounded-lg" />
               )}
-              {period === 'monthly-chart' && (
+              {draftPeriod === 'monthly-chart' && (
                 <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="w-full border p-2 rounded-lg" />
               )}
-              {period === 'yearly-chart' && (
+              {draftPeriod === 'yearly-chart' && (
                 <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="w-full border p-2 rounded-lg">
                   {[2024, 2025, 2026].map(y => (<option key={y} value={y}>{y}</option>))}
                 </select>
@@ -191,42 +182,6 @@ export default function ReportPage() {
               </tr>
             ))}
             {topRooms.length === 0 && <tr><td colSpan={2} className="p-4 text-center text-gray-400">Belum ada data</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      {/* PAYMENT HISTORY */}
-      <div className="bg-white border rounded-2xl">
-        <div className="p-4 border-b"><h2 className="font-bold">Riwayat Pembayaran</h2></div>
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs uppercase">
-            <tr>
-              <th className="p-4 text-left">ID</th>
-              <th className="p-4">Metode</th>
-              <th className="p-4">Tanggal</th>
-              <th className="p-4 text-right">Jumlah</th>
-              <th className="p-4 text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.map(p => (
-              <tr key={p.id} className="border-t">
-                <td className="p-4">#{p.id}</td>
-                <td className="p-4">{p.method}</td>
-                <td className="p-4">{new Date(p.created_at).toLocaleDateString("id-ID")}</td>
-                <td className="p-4 text-right font-bold">Rp {p.amount.toLocaleString("id-ID")}</td>
-                <td className="p-4 text-center">
-                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                    p.status === "confirmed" ? "bg-green-100 text-green-700" :
-                    p.status === "rejected" ? "bg-red-100 text-red-700" :
-                    "bg-yellow-100 text-yellow-700"
-                  }`}>
-                    {p.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {payments.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-gray-400">Belum ada transaksi</td></tr>}
           </tbody>
         </table>
       </div>
