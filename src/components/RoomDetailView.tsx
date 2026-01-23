@@ -60,6 +60,7 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
 
   const todayStr = new Date().toISOString().split("T")[0];
 
+
   useEffect(() => {
     const fetchRoomDetail = async () => {
       setIsLoading(true);
@@ -103,26 +104,21 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
   }, [roomId]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const user = localStorage.getItem("ministay_user");
-      setIsLoggedIn(!!user);
-
-      const storedBookings = JSON.parse(
-        localStorage.getItem("ministay_bookings") || "[]"
-      );
-      setExistingBookings(
-        storedBookings.filter(
-          (b: any) => String(b.roomId) === String(roomId) && b.status !== "cancelled"
-        )
-      );
-
-      const storedReviews = JSON.parse(
-        localStorage.getItem("ministay_reviews") || "[]"
-      );
-      setReviews(
-        storedReviews.filter((r: Review) => String(r.roomId) === String(roomId))
-      );
-    }
+    const fetchExistingBookings = async () => {
+      try {
+        const res = await api.get("/bookings");
+        const bookings = res.data
+          .filter((b:any) => b.room.id === roomId && b.payment?.status === "paid")
+          .map((b: any) => ({
+            checkIn: b.check_in_date,
+            checkOut: b.check_out_date,
+          }));
+        setExistingBookings(bookings);
+      } catch(err) {
+        console.error("gagal load", err);
+      }
+    };
+    if (roomId) fetchExistingBookings();
   }, [roomId]);
 
   if (isLoading) {
@@ -194,16 +190,37 @@ export default function RoomDetailView({ roomId, isModal = false }: RoomDetailVi
   };
 
   const days = getDays();
+  const checkLogin = () => {
+    const user = localStorage.getItem("ministay_user");
+    return !!user;
+  }
 
-  const handleMainAction = () => {
-    if (!isLoggedIn) {
+  const handleMainAction = async () => {
+    const loggedin = checkLogin();
+    if (!loggedin) {
         router.push("/login");
         return;
     }
     if (!checkIn || !checkOut) return alert("Pilih tanggal dulu.");
     if (new Date(checkIn) < new Date(todayStr)) return alert("Tidak bisa memesan tanggal lampau.");
     if (!isRangeAvailable(checkIn, checkOut)) return alert("Tanggal sudah terisi.");
-    router.push(`/checkout?roomId=${room.id}&checkIn=${checkIn}&checkOut=${checkOut}&days=${days}`);
+    try {
+      setIsLoading(true);
+      const res = await api.post("/bookings", {
+        room_id: room.id,
+        check_in_date: checkIn,
+        check_out_date: checkOut,
+        payment_method: "manual",
+      });
+
+      // const bookingId = res.data.id;
+
+      router.push("/");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Booking gagal");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderCalendar = () => {
