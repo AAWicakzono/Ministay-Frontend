@@ -5,11 +5,12 @@ import Link from "next/link";
 import { User, LogOut, Phone, LogIn, LayoutDashboard, ChevronDown, Settings } from "lucide-react";
 import { useNotification } from "@/context/NotificationContext";
 import { useRouter } from "next/navigation";
+import api from "@/lib/axios";
 
 export default function UserMenu() {
   const [user, setUser] = useState<{ name: string; phone?: string; role?: string } | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [isOpen, setIsOpen] = useState(false); // State Dropdown
+  const [isOpen, setIsOpen] = useState(false); 
   
   const { showPopup, showToast } = useNotification();
   const router = useRouter();
@@ -44,18 +45,20 @@ export default function UserMenu() {
   const handleLogout = () => {
     setIsOpen(false);
     showPopup(
-      "Keluar Aplikasi?",
-      "Anda harus login kembali untuk memesan kamar.",
-      "warning",
-      () => {
+        "Keluar Aplikasi?",
+        "Anda harus login kembali untuk memesan kamar.",
+        "warning",
+        () => {
         localStorage.removeItem("ministay_user");
         setUser(null);
+        api.defaults.headers.Authorization = "";
         window.dispatchEvent(new Event("user-update")); 
         showToast("Berhasil Logout. Sampai jumpa!", "success");
         router.push("/");
-      }
+        }
     );
-  };
+    };
+
 
   if (!mounted) return null; 
 

@@ -1,14 +1,37 @@
-"use client"; 
+"use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, BedDouble, CalendarCheck, Wallet, MessageSquare, LogOut, Building2, CalendarDays, ExternalLink } from "lucide-react"; 
+import { 
+  LayoutDashboard, BedDouble, CalendarCheck, Wallet, 
+  MessageSquare, LogOut, Building2, CalendarDays, ExternalLink, Loader2, 
+  Camera
+} from "lucide-react"; 
 import { useNotification } from "@/context/NotificationContext"; 
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); 
   const router = useRouter();
   const { showPopup, showToast } = useNotification(); 
+  
+ 
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  //  LOGIKA AUTH GUARD (PROTEKSI)
+  useEffect(() => {
+    const token = localStorage.getItem("ministay_admin_token");
+    
+    if(!token) {
+      if(!isLoggingOut) {
+        router.replace("/")
+      }
+      setIsAuthorized(false);
+    }else {
+      setIsAuthorized(true);
+    }
+  }, [router, isLoggingOut]);
 
   const menus = [
     { name: "Overview", url: "/admin/dashboard", icon: LayoutDashboard },
@@ -17,6 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Booking Masuk", url: "/admin/bookings", icon: CalendarCheck },
     { name: "Pendapatan", url: "/admin/finance", icon: Wallet },
     { name: "Chat Tamu", url: "/admin/chat", icon: MessageSquare },
+    { name: "Check in", url: "/admin/checkin", icon: Camera}
   ];
 
   const handleLogout = () => {
@@ -25,15 +49,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       "Sesi Anda akan diakhiri dan kembali ke halaman utama.",
       "warning",
       () => {
+        setIsLoggingOut(true);
+        setIsAuthorized(false);
         localStorage.removeItem("ministay_user");
-        window.dispatchEvent(new Event("user-update"));
+        localStorage.removeItem("ministay_admin_token");
+        window.dispatchEvent(new Event("user-update")); 
+
         
         showToast("Berhasil Logout", "success");
-        router.push("/"); 
+        router.replace("/"); 
       }
     );
   };
 
+  // TAMPILAN LOADING SEBELUM CEK LOGIN SELESAI 
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-2">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <p className="text-sm text-gray-500 font-medium">Memverifikasi akses...</p>
+        </div>
+      </div>
+    );
+  }
+
+  //  LAYOUT UTAMA 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans">
       
@@ -84,9 +125,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="overflow-hidden"><p className="text-sm font-bold text-gray-900 truncate">Kos Mawar Melati</p><p className="text-xs text-gray-500 truncate">Owner: Bpk. Budi</p></div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-                <Link href="/" className="flex flex-col items-center justify-center gap-1 px-2 py-2 text-gray-600 hover:bg-white hover:shadow-sm hover:text-blue-600 rounded-lg text-[10px] font-medium transition border border-transparent hover:border-gray-200">
-                    <ExternalLink className="w-4 h-4" /> Ke Beranda
-                </Link>
                 <button onClick={handleLogout} className="flex flex-col items-center justify-center gap-1 px-2 py-2 text-red-500 hover:bg-white hover:shadow-sm rounded-lg text-[10px] font-medium transition border border-transparent hover:border-red-100">
                     <LogOut className="w-4 h-4" /> Keluar
                 </button>
