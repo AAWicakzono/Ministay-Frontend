@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, BedDouble, CalendarCheck, Wallet, 
-  MessageSquare, LogOut, Building2, CalendarDays, ExternalLink, Loader2 
+  MessageSquare, LogOut, Building2, CalendarDays, ExternalLink, Loader2, 
+  Camera
 } from "lucide-react"; 
 import { useNotification } from "@/context/NotificationContext"; 
 
@@ -39,6 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Booking Masuk", url: "/admin/bookings", icon: CalendarCheck },
     { name: "Pendapatan", url: "/admin/finance", icon: Wallet },
     { name: "Chat Tamu", url: "/admin/chat", icon: MessageSquare },
+    { name: "Check in", url: "/admin/checkin", icon: Camera}
   ];
 
   const handleLogout = () => {

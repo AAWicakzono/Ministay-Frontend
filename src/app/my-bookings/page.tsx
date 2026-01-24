@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { QrCode, Download, Star, X, ArrowLeft } from "lucide-react";
+import { Download, Star, X, ArrowLeft } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { Review } from "@/types";
 import { useNotification } from "@/context/NotificationContext";
 import { format, parseISO } from "date-fns";
 import api from "@/lib/axios";
-import { useUserAuth } from "@/hooks/useUserLogin";
+import { QRCodeCanvas } from "qrcode.react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 interface Booking {
   id: string;
@@ -32,7 +34,7 @@ export default function MyBookingsPage() {
   const [comment, setComment] = useState("");
 
 
-  const { showToast, showPopup } = useNotification(); // 2. Panggil Hook
+  const { showToast, showPopup } = useNotification();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -60,7 +62,22 @@ export default function MyBookingsPage() {
       fetchBookings();
     }
   }, []);
+    const handleDownloadPDF = async () => {
+        if (!showTicket) return;
+        const ticketElement = document.getElementById("e-ticket");
+        if (!ticketElement) return;
 
+        const canvas = await html2canvas(ticketElement);
+        const imgData = canvas.toDataURL("image/png");
+
+        const pdf = new jsPDF("p", "mm", "a4");
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+        pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`ETicket-${showTicket.bookingCode}.pdf`);
+    };
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewBooking) return;
@@ -73,6 +90,8 @@ export default function MyBookingsPage() {
       comment,
       date: new Date().toLocaleDateString("id-ID")
     };
+
+    
 
     const existingReviews = JSON.parse(localStorage.getItem("ministay_reviews") || "[]");
     localStorage.setItem("ministay_reviews", JSON.stringify([newReview, ...existingReviews]));
@@ -132,7 +151,7 @@ export default function MyBookingsPage() {
                             onClick={() => setShowTicket(item)}
                             className="bg-gray-900 text-white p-2.5 rounded-xl hover:bg-black transition shadow-lg flex flex-col items-center gap-1 min-w-[60px]"
                         >
-                            <QrCode className="w-6 h-6"/>
+                            <QRCodeCanvas value={item.bookingCode} size={24}/>
                             <span className="text-[9px] font-bold">E-Ticket</span>
                         </button>
                     </div>
@@ -225,9 +244,9 @@ export default function MyBookingsPage() {
                     <p className="text-blue-100 text-sm relative z-10 opacity-90">Tunjukkan QR ini ke resepsionis</p>
                 </div>
                 <div className="px-6 -mt-8 relative z-20">
-                    <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 text-center">
+                    <div id="e-ticket" className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 text-center">
                         <div className="w-40 h-40 bg-gray-900 mx-auto rounded-2xl flex items-center justify-center mb-4 shadow-inner ring-4 ring-white">
-                            <QrCode className="w-24 h-24 text-white"/>
+                            <QRCodeCanvas value={showTicket.bookingCode} size={160}/>
                         </div>
                         <p className="text-xs text-gray-400 mb-4 font-medium tracking-wide">SCAN ME • MINISTAY</p>
                         <div className="border-t border-dashed border-gray-200 my-4"></div>
@@ -236,10 +255,15 @@ export default function MyBookingsPage() {
                         <div className="bg-blue-50 rounded-xl p-4 text-left space-y-3 text-sm border border-blue-100">
                             <div className="flex justify-between"><span className="text-gray-500">Check-in</span><span className="font-bold text-gray-900">{format(parseISO(showTicket.checkIn), "dd MM yyyy")}</span></div>
                             <div className="flex justify-between"><span className="text-gray-500">Check-out</span><span className="font-bold text-gray-900">{format(parseISO(showTicket.checkOut), "dd MM yyyy")}</span></div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">Kontak Hotel</span>
+                                <span className="font-bold text-gray-900">+62 812-3456-7890</span>
+                            </div>
                         </div>
+                        
                     </div>
                 </div>
-                <div className="p-6"><button className="w-full bg-gray-900 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-black transition shadow-lg"><Download className="w-4 h-4"/> Simpan Tiket</button></div>
+                <div className="p-6"><button onClick={handleDownloadPDF} className="w-full bg-gray-900 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-black transition shadow-lg"><Download className="w-4 h-4"/> Simpan Tiket</button></div>
             </div>
         </div>
       )}
